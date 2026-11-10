@@ -1,51 +1,54 @@
 # PISKIN MUSIC — Apple Music in your terminal
 
-PISKIN MUSIC adds a monochrome shell and four screens to the MIT-licensed
-[applemusic-tui](https://github.com/k1y0miiii/applemusic-tui) by k1y0miiii.
-The executable remains `amtui`; existing aliases, config and authentication
-profiles, and MPRIS IDs are preserved. The screenshots below show the upstream
-interface and have not yet been refreshed for the four-screen shell.
+PISKIN MUSIC is a keyboard-first Apple Music terminal client with a monochrome
+interface, original-color artwork, live audio visualization and synced lyrics.
+It builds on the MIT-licensed
+[applemusic-tui](https://github.com/k1y0miiii/applemusic-tui) by k1y0miiii,
+with four screens: **Library, Focus, Visualizer and Lyrics**.
 
-**English** · [Русский](README.ru.md)
+The executable remains `amtui`. Existing aliases, configuration, browser sign-in
+profiles and MPRIS identity are preserved; no migration is required.
+
+**English** · [Русский — upstream documentation](README.ru.md)
 
 ![Go 1.26](https://img.shields.io/badge/Go-1.26-555?style=flat-square&logo=go&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-555?style=flat-square)
 ![License: MIT](https://img.shields.io/badge/license-MIT-555?style=flat-square)
 
-`amtui` is a terminal Apple Music player — a full TUI client with catalog
-search, a live audio spectrum visualizer and synced lyrics, running on **Linux
-as well as macOS**. It drives the official Apple Music web player inside a
-hidden Chromium, so playback is the real thing. No DRM hacks: the browser plays
-the audio legally, amtui just gives it a terminal face.
+Playback uses the official Apple Music web player in a hidden Chromium window,
+controlled through MusicKit. Sign-in and DRM stay in the browser; PISKIN MUSIC
+provides the terminal interface. Linux and macOS support live system-audio
+capture; Windows supports playback with no native capture backend yet.
 
 <p align="center"><img src="docs/media/demo.gif" alt="amtui — Apple Music in the terminal" width="800"></p>
 
-## Why amtui
+The demo and screenshots in this README show the upstream interface. They have
+not yet been refreshed for PISKIN MUSIC's four-screen layout.
 
-Terminal Apple Music clients are usually AppleScript remotes for the macOS
-Music.app: Mac-only, and limited to steering an app that has to be running
-anyway. amtui talks to Apple Music's **web** player through MusicKit instead,
-which changes what is possible:
+## Four screens
 
-- **Linux, not just macOS.** The same Go binary runs on both. (Linux support is
-  newer — see the note under [Requirements](#requirements).)
-- **The full catalog, in the terminal.** Search songs, albums and playlists
-  straight from MusicKit — no desktop app in the loop.
-- **A real spectrum visualizer.** Actual system-audio PCM through an FFT, not a
-  decorative animation.
-- **Synced lyrics** from LRCLIB, with the album cover rendered next to them.
-- **Your credentials stay out of the terminal.** You sign in inside a real
-  browser window, so 2FA and captcha just work.
+| Key | Screen | What it shows |
+| --- | --- | --- |
+| `1` | Library | Your albums, playlists and recently played items; use `[` / `]` to switch category. |
+| `2` | Focus | Current track metadata and album artwork, with playback controls below. |
+| `3` | Visualizer | Live spectrum, torus, sphere or PCM waveform; press `v` to cycle modes. |
+| `4` | Lyrics | Synced lyrics with artwork when there is room. |
+
+Screen changes preserve playback, selections and each screen's keyboard focus.
+Search (`/`), queue (`c`), EQ (`Q`), account (`a`) and help (`?`) are available
+from every screen. The interface adapts down to 40×12 terminal cells; smaller
+windows show a minimal now-playing and resize view.
 
 ## Features
 
 - **Full Apple Music catalog** — search songs, albums and playlists, plus your
   recently played, straight from MusicKit.
 - **Queue** — jump to any track, append to queue, play next.
-- **Recently played** — a cover grid under the queue: your last ten albums,
-  playlists and singles as half-block artwork, arrow keys to pick, `↵` to play.
+- **Recently played** — your last ten albums, playlists and singles, available
+  in Library and as a cover grid under its queue when space allows.
 - **Live visualizer** — what is actually playing: system-audio PCM through a
-  4096-sample Hann-window FFT into 32 bands (denser at low frequencies), 30 fps.
+  4096-sample Hann-window FFT into 32 bands (denser at low frequencies), with
+  visible playing visualization targeting up to 30 fps.
   CoreAudio process tap on macOS, PipeWire/PulseAudio monitor on Linux. Capture
   failure shows a quiet unavailable panel; the labeled compatibility demo is
   opt-in. Four modes, cycled with `v`: a real **PCM waveform**, Winamp-style
@@ -58,12 +61,15 @@ which changes what is possible:
 - **MPRIS on Linux** — media keys, panel widgets, lock screens and `playerctl`
   drive it like any desktop player. Appears automatically when there is a
   session bus.
-- **Themes** — six built-in palettes cycled with `t`, overridable per color in
-  a config file, plus an `auto` mode that pulls the accent from the artwork.
+- **Themes** — the fixed monochrome `piskin` default plus six legacy palettes,
+  cycled with `t`. Legacy colors can be overridden in the config; `auto` pulls
+  its accent from the artwork.
+- **Reduced motion** — optional fixed shape orientation, no bass pulse and
+  visualization updates capped at 10 Hz. Idle and hidden UI ticks run at 4 Hz.
 - **Transport** — play/pause, next/prev, seek, volume, shuffle, repeat, and a
   progress bar showing recorded band-derived loudness along the track (not PCM).
 - **10-band equalizer** — real Web Audio filters on the playback chain, `Q` to
-  swap the visualizer for it, presets cycled with `P`, gains persisted across
+  open its panel, presets cycled with `P`, gains persisted across
   runs.
 - **Safe sign-in** — you log in inside a real browser window; your Apple ID
   credentials never touch the terminal.
@@ -92,57 +98,35 @@ through the system mixer (the web player serves AAC 256; no lossless).
 ## Requirements
 
 - An active **Apple Music subscription**
-- **Go 1.26+** (to build from source)
+- **Go 1.26+** and **Git** (to build from source)
 - **Chrome or Chromium**
   - macOS: any recent Chrome/Chromium
   - Linux: a Widevine-capable browser — `google-chrome`, or Chromium with the
     Widevine plugin (e.g. `chromium-widevine` on the AUR)
   - Windows: Google Chrome or Microsoft Edge (auto-detected; `AMTUI_CHROME`
     overrides)
-- **macOS 14.2+** (the live visualizer uses a CoreAudio process tap),
-  or **Linux** with `pipewire-pulse` (or plain PulseAudio) for live capture
+- For live capture: **macOS 14.2+** with a cgo build and System Audio Recording
+  permission for the launching terminal/application, or **Linux** with
+  `pipewire-pulse` (or plain PulseAudio)
+- A UTF-8 terminal; true color support is recommended for artwork and themes
 
-> Linux support is **experimental** — designed for Arch/Ubuntu, currently less
-> tested than macOS. On Hyprland the browser window is auto-hidden into a
-> special workspace (Wayland forbids offscreen positioning); other Wayland
-> compositors may leave the window visible for now.
+> The primary tested target is Linux ARM64 with Hyprland and PipeWire. On
+> Hyprland the browser window is parked in a special workspace; other Wayland
+> compositors may leave it visible. Platform verification and remaining native
+> runtime checks are recorded in [TESTING.md](TESTING.md).
 
-> Windows is now built and tested in CI, but there is still no system-audio
+> The Windows workflow builds and tests natively, but there is no system-audio
 > capture backend, so the visualizer shows UNAVAILABLE by default. Set
 > `visualizer.demo = true` for the legacy simulated animation. Use Windows
 > Terminal — the legacy console does not render the TUI correctly. From Git Bash, run it with `winpty amtui`.
 
 ## Install
 
-### Prebuilt binaries
-
-Grab the archive for your platform from the
-[latest release](https://github.com/k1y0miiii/applemusic-tui/releases/latest) —
-macOS (Apple Silicon / Intel), Linux (x86-64 / arm64) and Windows
-(x86-64 / arm64):
+### From source — Linux / macOS
 
 ```sh
-tar -xzf amtui-*-linux-amd64.tar.gz
-sudo install -m755 amtui-*/amtui /usr/local/bin/amtui
-amtui --version
-```
-
-Every release ships a `SHA256SUMS` file; verify with `shasum -a 256 -c SHA256SUMS`.
-
-macOS binaries are unsigned, so the first launch needs
-`xattr -d com.apple.quarantine amtui` (or right-click → Open).
-
-Windows: unzip the archive and run `amtui.exe` from Windows Terminal or
-PowerShell. The binary is unsigned, so SmartScreen may say "Windows protected
-your PC" — click More info → Run anyway. If Defender quarantines it (a known
-false positive for stripped Go binaries), build from source with `install.ps1`
-instead.
-
-### From source
-
-```sh
-git clone https://github.com/k1y0miiii/applemusic-tui
-cd applemusic-tui
+git clone https://github.com/theonheptagrammaton/piskinmusic.git
+cd piskinmusic
 ./install.sh
 ```
 
@@ -152,20 +136,28 @@ zsh / bash / fish. `--prefix DIR` installs elsewhere, `--no-path` leaves your
 shell config alone. If Chrome is missing, the installer offers to install it
 (Homebrew on macOS, the official `.deb` or AUR on Linux).
 
+Open a new terminal so PATH changes take effect, then run `amtui --version`
+and `amtui`.
+
 On macOS the live visualizer needs the Xcode Command Line Tools
 (`xcode-select --install`) — the installer checks for them.
 
-Prefer doing it by hand? `go build -o amtui .` works too; a `CGO_ENABLED=0`
-macOS build has no live capture and shows UNAVAILABLE. Linux capture is pure Go
-and works without cgo. The legacy demo remains an explicit opt-in on all platforms.
+To build and run directly from the checkout:
 
-Run the test suite with `make test`, or `make verify` for the full check.
+```sh
+go build -o amtui .
+./amtui
+```
 
-#### Windows
+A `CGO_ENABLED=0` macOS build has no live capture and shows UNAVAILABLE.
+Linux capture is pure Go and works without cgo. The legacy demo remains an
+explicit opt-in on all platforms.
+
+### From source — Windows
 
 ```powershell
-git clone https://github.com/k1y0miiii/applemusic-tui
-cd applemusic-tui
+git clone https://github.com/theonheptagrammaton/piskinmusic.git
+cd piskinmusic
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
@@ -175,19 +167,37 @@ directory to your user PATH. `-Prefix DIR` installs elsewhere, `-NoPath`
 leaves your PATH alone. Needs Go 1.26+ and Git on PATH; no admin rights
 required.
 
-> Building all release archives yourself: `make dist`. macOS is the only host
-> that produces a complete set — the darwin builds need cgo for the CoreAudio
-> visualizer, while the Linux and Windows targets are pure Go and
-> cross-compile from anywhere.
+Open a new Windows Terminal or PowerShell session, then run `amtui --version`
+and `amtui`.
+
+### Packaged builds
+
+Use this repository's [Releases page](https://github.com/theonheptagrammaton/piskinmusic/releases)
+for PISKIN MUSIC packages when available. Upstream `applemusic-tui` binaries
+do not include this fork's interface. The current development candidate and its
+remaining release checks are described in [release notes](docs/RELEASE_NOTES.md).
+
+Archives use the name `amtui-VERSION-OS-ARCH`: macOS (`darwin`), Linux and
+Windows, each for `amd64` or `arm64`. Download the matching archive and its
+`SHA256SUMS`; verify the archive's entry with `sha256sum` on Linux,
+`shasum -a 256` on macOS, or `Get-FileHash -Algorithm SHA256` on Windows.
+Extract it, then run `amtui` (`amtui.exe` on Windows) from a terminal.
+
+On macOS, an unsigned downloaded binary may need
+`xattr -d com.apple.quarantine amtui` before launch. On Windows, unsigned builds
+may trigger SmartScreen; building from this checkout is also supported.
 
 ## First run
 
-1. Launch `./amtui` — a **visible** browser window opens on music.apple.com.
-2. Sign in with your Apple ID. It is a normal browser, so 2FA and captcha
-   just work.
+1. Launch `amtui` after installation, or `./amtui` from a manual build. If
+   sign-in is needed, a **visible** browser window opens on music.apple.com.
+2. Sign in with the Apple ID that has your active Apple Music subscription.
+   The application's browser profile is separate from your usual browser.
+   Sign-in, 2FA and captcha happen in that window.
 3. Done — the window hides and the TUI takes over. The session persists in
    `~/.config/amtui/chrome`, so next launches go straight to the player.
-
+4. Press `/` to search, or browse Library with `[` / `]` and the arrow keys.
+   Press `Enter` to play and `1`–`4` to change screens. `?` opens the full controls.
 
 ## Keys
 
@@ -357,18 +367,92 @@ pulse, the loudness timeline and the album art on or off, and opts into demo.
 
 ## Configuration
 
-Set `[ui] reduced_motion = true` in `config.toml` to hold shape orientation still, disable
-the bass pulse, and limit active visualization updates to 10 Hz. Idle/hidden UI
-ticks run at 4 Hz; capture and live history continue independently. See
-[migration and release notes](docs/RELEASE_NOTES.md) for resource policy and
-platform validation requirements.
+Configuration is optional. Start with
+[`docs/config.example.toml`](docs/config.example.toml) when creating
+`~/.config/amtui/config.toml`, or merge its settings into an existing file.
+Settings are read at startup. For example:
+
+```toml
+[theme]
+name = "piskin"
+
+[ui]
+reduced_motion = true
+
+[visualizer]
+demo = false
+peaks = true
+pulse = true
+wave = true
+
+[artwork]
+enabled = true
+```
+
+Reduced motion holds torus/sphere orientation still, disables the bass pulse
+even when `pulse = true`, and limits active visualization updates to 10 Hz.
+Idle/hidden UI ticks run at 4 Hz. Capture and analysis continue independently;
+the bounded loudness history is sampled at the UI cadence. No audio files are
+saved. See [migration and release notes](docs/RELEASE_NOTES.md) for resource
+policy and platform validation requirements.
+
+Theme, visualizer mode, EQ gains and the optional Last.fm session are saved in
+separate files, so changing them through the UI does not rewrite `config.toml`.
 
 | Environment variable | Effect |
 | --- | --- |
 | `AMTUI_CHROME` | Path to the Chrome/Chromium binary (overrides auto-detection; also covers Microsoft Edge on Windows) |
-| `AMTUI_CONFIG_DIR` | Config directory (default `~/.config/amtui`) |
-| `AMTUI_DEBUG` | Run the browser visibly, with verbose logging |
+| `AMTUI_CONFIG_DIR` | Configuration and saved-preference directory (default `~/.config/amtui`); the Chromium profile stays at `~/.config/amtui/chrome` |
+| `AMTUI_DEBUG` | Keep the browser visible with DevTools open for debugging |
+
+## Troubleshooting
+
+- **Browser not found:** set `AMTUI_CHROME` to the full path of a compatible
+  Chrome/Chromium executable (or Edge on Windows).
+- **Previews or subscription errors:** press `a` to open Account, then `Enter`
+  to sign out. Relaunch and sign into the subscribed account in the application's
+  browser window.
+- **Playback stuck initializing:** press `R` to reload the web player.
+- **Visualizer shows UNAVAILABLE:** Linux needs access to a PulseAudio monitor
+  through `pipewire-pulse` or PulseAudio. macOS needs a cgo build, macOS 14.2+
+  and System Audio Recording permission. Windows has no capture backend.
+- **Visualizer includes other apps:** capture reads system output. Audio from
+  other applications can contribute to the spectrum and waveform.
+
+## Development
+
+Run these checks from the repository root with Go 1.26+ and Chrome/Chromium
+available for the browser-backed engine tests:
+
+```sh
+go mod verify
+go vet ./...
+go test ./...
+go test -race ./...
+CGO_ENABLED=1 go build ./...
+CGO_ENABLED=0 go build ./...
+```
+
+The cgo build and race checks require a C compiler. On macOS 14.2+ with Xcode
+Command Line Tools, `make verify` runs the full check including the Mach-O
+minimum deployment version check. That final check uses macOS `vtool`, so
+`make verify` is not a portable Linux command. `make test` runs the cgo-enabled
+test suite.
+
+`make dist VERSION=dev` generates archives, dependency notices and `SHA256SUMS`
+under `dist/`. It builds Linux and Windows targets on Linux; a macOS host is
+required to add native cgo macOS archives. Packaging does not publish a release.
+
+Further documentation:
+
+- [Architecture](ARCHITECTURE.md) — package boundaries and playback/capture flow.
+- [Design](DESIGN.md) — screen layout and interaction design.
+- [Plan](PLAN.md) — implementation phases and remaining work.
+- [Testing](TESTING.md) — recorded measurements, runtime evidence and hardware checks.
+- [Release notes](docs/RELEASE_NOTES.md) — migration, resource policy and packaging.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). Based on `applemusic-tui`, copyright (c) 2026 k1y0miiii.
+Dependency licenses and notices are preserved in
+[THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).
