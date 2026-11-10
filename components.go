@@ -37,26 +37,65 @@ func centeredRows(s string, w, rows int) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// panel draws a bordered box. accentNow is the (possibly bass-pulsed) accent
-// used for the focused border; callers pass m.pulsedAccent().
+// panel keeps the shared content inset without enclosing every region in a box.
+// The heading carries focus in text as well as color; the rule stays quiet.
 func panel(title, body string, w, h int, focused bool, accentNow lipgloss.Color) string {
-	bc, tc := borderDim, fgFaint
+	tc := fgFaint
 	if focused {
-		bc, tc = accentNow, accentHi
+		tc = accentNow
 		title = "[" + title + "]"
 	}
-	head := lipgloss.NewStyle().Foreground(tc).Bold(true).Render(" " + title)
-	content := pad(head, w) + "\n" + body
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).BorderForeground(bc).
-		Width(w).Height(h).Render(content)
+	head := lipgloss.NewStyle().Foreground(tc).Bold(true).Render(title)
+	if room := w - lipgloss.Width(head) - 2; room > 0 {
+		head += "  " + lipgloss.NewStyle().Foreground(borderDim).Render(strings.Repeat("─", room))
+	}
+	content := "\n" + pad(head, w) + "\n" + fitBlock(body, w, h-1) + "\n"
+	return lipgloss.NewStyle().Padding(0, 1).Render(fitBlock(content, w, h+2))
+}
+
+// listTrack reserves the right-hand column before clipping long Unicode titles.
+// Selection is styled once so secondary text also stays legible when inverted.
+func listTrack(prefix, title, artist, duration string, w int, selected, playing bool) string {
+	textW := w - lipgloss.Width(prefix)
+	right := ""
+	if duration != "" {
+		right = "  " + duration
+		textW -= lipgloss.Width(right)
+	}
+	var left string
+	if textW >= 52 && artist != "" {
+		titleW := textW * 3 / 5
+		left = ellipsize(title, titleW) + "  " + ellipsize(artist, textW-titleW-2)
+	} else {
+		if artist != "" {
+			title += " · " + artist
+		}
+		left = ellipsize(title, max(0, textW))
+	}
+	if selected {
+		return selectedRow(prefix+left+right, w)
+	}
+	tone := fgDim
+	if playing {
+		tone = fgBright
+	}
+	return lipgloss.NewStyle().Foreground(accentHi).Render(prefix) +
+		lipgloss.NewStyle().Foreground(tone).Render(left) +
+		lipgloss.NewStyle().Foreground(fgFaint).Render(right)
+}
+
+func ellipsize(s string, w int) string {
+	if w <= 0 {
+		return ""
+	}
+	return pad(ansi.Truncate(s, w, "…"), w)
 }
 
 func (m model) queuePanel(w, h int) string {
 	var b strings.Builder
 	rows := h - 1
 	if m.audioInitializing() {
-		return centeredRows(m.audioInitializingLine(), w, rows)
+		return centeredBlock(ansi.Wrap(m.audioInitializingLine(), w, ""), w, rows)
 	}
 	if m.loading != "" && m.loadHideQueue {
 		sp := []rune("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
@@ -86,9 +125,9 @@ func (m model) queuePanel(w, h int) string {
 			continue
 		}
 		tr := q[i]
-		prefix, ts, as := "  ", fgDim, fgFaint
+		prefix := "  "
 		if i == m.st.QueuePos {
-			prefix, ts, as = "▶ ", fgBright, fgDim
+			prefix = "▶ "
 		}
 		if i == m.selIdx {
 			if i == m.st.QueuePos {
@@ -97,15 +136,8 @@ func (m model) queuePanel(w, h int) string {
 				prefix = "▸ "
 			}
 		}
-		left := lipgloss.NewStyle().Foreground(accentHi).Render(prefix) +
-			lipgloss.NewStyle().Foreground(ts).Render(tr.Title) +
-			lipgloss.NewStyle().Foreground(as).Render(" — "+tr.Artist)
-		dur := lipgloss.NewStyle().Foreground(fgFaint).Render(fmtTime(tr.Duration))
-		gap := w - lipgloss.Width(left) - lipgloss.Width(dur) - 1
-		line := left + strings.Repeat(" ", max(1, gap)) + dur
-		if m.focus == focusQueue && i == m.selIdx {
-			line = selectedRow(prefix+tr.Title+" — "+tr.Artist+" "+fmtTime(tr.Duration), w)
-		}
+		line := listTrack(prefix, tr.Title, tr.Artist, fmtTime(tr.Duration), w,
+			m.focus == focusQueue && i == m.selIdx, i == m.st.QueuePos)
 		b.WriteString(pad(line, w) + "\n")
 	}
 	return strings.TrimRight(b.String(), "\n")
@@ -362,29 +394,30 @@ func barCellAt(height, level, peak float64, hasPeak bool) (kind barCellKind, gly
 }
 
 func (m model) vizPanel(w, h int) string {
-	if w <= 0 || h <= 0 {
+	if w <= 0 || h <= 1 {
 		return ""
 	}
 	switch m.captureStatus() {
 	case captureStarting:
-		return fitBlock("Waiting for system audio PCM…", w, h)
+		return centeredBlock("Waiting for system audio PCM…", w, h-1)
 	case captureStale:
-		return fitBlock("System audio capture is stale", w, h)
+		return centeredBlock("System audio capture is stale", w, h-1)
 	case captureUnavailable:
-		return fitBlock("System audio capture unavailable", w, h)
+		return centeredBlock("System audio capture unavailable", w, h-1)
 	}
 	switch m.vizMode {
 	case vizWaveform:
 		if m.captureStatus() == captureDemo {
-			return fitBlock("PCM unavailable in demo", w, h)
+			return centeredBlock("PCM unavailable in demo", w, h-1)
 		}
-		return pcmPanel(m.vizPCM, w, h)
+		return pcmPanel(m.vizPCM, w, h-1)
 	case vizTorus:
 		return orbPanel(w, h-1, m.orbSpin, m.orbWobble, m.vizBands)
 	case vizSphere:
 		return spherePanel(w, h-1, m.orbSpin, m.orbWobble, m.orbKick, m.vizBands)
 	}
-	rows, bars := h-1, max(1, w/3)
+	rows, bars := max(1, h-2), max(1, (w-4)/3)
+	inset := strings.Repeat(" ", max(0, (w-(bars*3-1))/2))
 	heights := liveBarHeights(m.vizBands, bars, rows)
 	var peaks []float64
 	if configBool(m.cfg, "visualizer.peaks", true) {
@@ -414,7 +447,7 @@ func (m model) vizPanel(w, h int) string {
 			}
 			row.WriteString(" ")
 		}
-		b.WriteString(pad(" "+row.String(), w) + "\n")
+		b.WriteString(pad(inset+row.String(), w) + "\n")
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
@@ -472,17 +505,7 @@ func (m model) lyricsWidth() int {
 // cover so the two can sit side by side.
 func (m model) lyricsText(w, rows int) string {
 	faint := lipgloss.NewStyle().Foreground(fgFaint)
-	center := func(s string) string {
-		var b strings.Builder
-		for r := 0; r < rows; r++ {
-			line := ""
-			if r == rows/2 {
-				line = s
-			}
-			b.WriteString(pad(line, w) + "\n")
-		}
-		return strings.TrimRight(b.String(), "\n")
-	}
+	center := func(s string) string { return centeredBlock(s, w, rows) }
 	switch {
 	case m.lyBusy:
 		sp := []rune("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
@@ -497,11 +520,18 @@ func (m model) lyricsText(w, rows int) string {
 	} else if m.st.Dur > 0 {
 		cur = int(float64(m.st.Pos) / float64(m.st.Dur) * float64(len(m.ly.Lines)))
 	}
-	start := max(0, min(cur-rows/2, len(m.ly.Lines)-rows))
+	step := 1
+	if rows >= 16 {
+		step = 2
+	}
+	slots := (rows + step - 1) / step
+	start := max(0, min(cur-slots/2, len(m.ly.Lines)-slots))
+	top := max(0, (rows-(min(slots, len(m.ly.Lines))*step-(step-1)))/2)
+	inset := max(0, (w-min(60, m.lyricsWidth()+2))/2)
 	var b strings.Builder
 	for r := 0; r < rows; r++ {
-		i := start + r
-		if i >= len(m.ly.Lines) {
+		i := start + (r-top)/step
+		if r < top || (r-top)%step != 0 || i >= len(m.ly.Lines) {
 			b.WriteString(pad("", w) + "\n")
 			continue
 		}
@@ -516,7 +546,11 @@ func (m model) lyricsText(w, rows int) string {
 				text = "♪"
 			}
 		}
-		b.WriteString(pad(st.Render(" "+text), w) + "\n")
+		marker := "  "
+		if m.ly.Synced && i == cur {
+			marker = "› "
+		}
+		b.WriteString(pad(strings.Repeat(" ", inset)+st.Render(marker+text), w) + "\n")
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
@@ -558,6 +592,12 @@ func (m model) transportPanel(w int) string {
 	return m.renderTransportPanel(w, barW)
 }
 
+func (m model) transportFrame(l layout) string {
+	rule := lipgloss.NewStyle().Foreground(borderDim).Render(strings.Repeat("─", l.transport.w))
+	lines := strings.Split(m.renderTransportPanel(l.transport.w, l.progress.w), "\n")
+	return " " + rule + " \n " + lines[0] + " \n " + lines[1] + " \n" + strings.Repeat(" ", m.w)
+}
+
 func (m model) renderTransportPanel(w, barW int) string {
 	if w < 68 {
 		return m.compactTransport(w, barW)
@@ -568,7 +608,7 @@ func (m model) renderTransportPanel(w, barW int) string {
 	}
 	dim := lipgloss.NewStyle().Foreground(fgDim)
 	faint := lipgloss.NewStyle().Foreground(fgFaint)
-	pink := lipgloss.NewStyle().Foreground(accentHi)
+	bright := lipgloss.NewStyle().Foreground(accentHi)
 
 	title, artist := m.st.Now.Title, m.st.Now.Artist
 	if title == "" {
@@ -581,11 +621,11 @@ func (m model) renderTransportPanel(w, barW int) string {
 	if m.note != "" {
 		hints = m.note + " "
 	}
-	mark := " ▀▀ "
+	mark := "    "
 	if m.focus == focusPlayer {
 		mark = " ▸  "
 	}
-	l1 := pink.Render(mark) +
+	l1 := bright.Render(mark) +
 		lipgloss.NewStyle().Foreground(fgBright).Bold(true).Render(title) +
 		faint.Render(" — "+artist)
 	if album := m.st.Now.Album; album != "" {
@@ -595,23 +635,24 @@ func (m model) renderTransportPanel(w, barW int) string {
 		l1 = m.audioInitializingLine()
 	} else if m.loading != "" {
 		sp := []rune("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
-		l1 = pink.Render(" "+string(sp[int(m.t*12)%len(sp)])+" ") +
+		l1 = bright.Render(" "+string(sp[int(m.t*12)%len(sp)])+" ") +
 			dim.Render("loading ") +
 			lipgloss.NewStyle().Foreground(fgBright).Bold(true).Render(m.loading) +
 			dim.Render("…")
 	}
-	// The hints share this row with the track title, so on a narrow terminal
-	// there may be no room for them. pad() truncates silently, which is how the
-	// old line lost its tail without anyone noticing; drop to the short form
-	// instead, and then to nothing, so whatever is shown is shown whole.
-	hints = fitHints(hints, w-lipgloss.Width(l1)-1)
+	// Always reserve a complete help hint before truncating track metadata.
+	hints = fitHints(hints, w-lipgloss.Width(l1)-2)
+	if hints == "" && w >= lipgloss.Width(shortHints)+12 {
+		hints = shortHints
+	}
 	r1 := faint.Render(hints)
-	line1 := l1 + strings.Repeat(" ", max(1, w-lipgloss.Width(l1)-lipgloss.Width(r1))) + r1
+	l1 = ellipsize(l1, w-lipgloss.Width(r1)-2)
+	line1 := l1 + "  " + r1
 
 	volSegs := (m.st.Volume + 9) / 17 // 0..6 segments
 	volSt := faint
 	if m.focus == focusPlayer {
-		volSt = pink
+		volSt = bright
 	}
 	shuf, rep := "off", [3]string{"off", "one", "all"}[min(m.st.Repeat, 2)]
 	if m.st.Shuffle {
@@ -628,8 +669,8 @@ func (m model) renderTransportPanel(w, barW int) string {
 	}
 	filled := int(frac * float64(barW))
 	bar := m.progressBar(barW, filled)
-	l2 := lipgloss.NewStyle().Foreground(accent).Render(" ▄▄ ") +
-		pink.Render(icon+" ") + dim.Render(times) + bar + dim.Render(timee)
+	l2 := dim.Render(" ‹  ") + bright.Render(icon) + dim.Render("  ›  ") +
+		dim.Render(times) + bar + dim.Render(timee)
 	line2 := l2 + strings.Repeat(" ", max(1, w-lipgloss.Width(l2)-lipgloss.Width(r2))) + r2
 	return pad(line1, w) + "\n" + pad(line2, w)
 }
@@ -713,7 +754,7 @@ func (m model) View() string {
 			case m.eqOpen:
 				title, body = eqTitle(m.eqGains, m.eqSel), m.eqBody(w, h, lay)
 			case m.screen == screenLibrary:
-				title, body = "LIBRARY · [ / ] category", m.libraryPanel(w, h)
+				title, body = fmt.Sprintf("LIBRARY · %d %s", len(m.libraryList(m.libraryTab)), strings.ToLower(libraryNames[m.libraryTab])), m.libraryPanel(w, h)
 			case m.screen == screenFocus:
 				title, body = "NOW PLAYING", m.focusPanel(w, h)
 			case m.screen == screenVisualizer:
@@ -724,7 +765,7 @@ func (m model) View() string {
 			main = panel(title, body, w, h, m.focus == focusLibrary, m.pulsedAccent())
 		}
 		top := lipgloss.JoinHorizontal(lipgloss.Top, left, main)
-		transport := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(map[bool]lipgloss.Color{true: m.pulsedAccent(), false: borderDim}[m.focus == focusPlayer]).Width(lay.transport.w).Render(m.renderTransportPanel(lay.transport.w, lay.progress.w))
+		transport := m.transportFrame(lay)
 		frame = m.header(lay) + "\n" + top + "\n" + transport
 	}
 	frame = lipgloss.NewStyle().Background(background).Foreground(fgBright).Render(fitBlock(frame, m.w, m.h))

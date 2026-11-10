@@ -28,9 +28,10 @@ Never communicate error, live state or keyboard focus through color alone.
 
 Shared components: screen navigation, focusable list, metadata block, artwork,
 transport/progress, source-status line, empty/loading/error state, overlay frame,
-key hints. Reuse the existing panel helper only where a boundary aids navigation;
-avoid nesting borders. Components consume cell dimensions and return clipped
-output. The layout owns geometry for both rendering and mouse input.
+key hints. The panel helper uses an inset heading, a quiet rule and breathing
+space instead of enclosing each region in a box. Components consume cell
+dimensions and return clipped output. The layout owns geometry for both
+rendering and mouse input.
 
 The existing palettes remain available as explicit legacy choices for
 compatibility. The PISKIN default and its artwork behavior are fixed monochrome;
@@ -42,7 +43,7 @@ product changes. Existing saved preferences are not silently rewritten.
 | Screen | Primary content | Supporting interaction |
 | --- | --- | --- |
 | Library | User albums/playlists, recent items, catalog search access | Reuse current library/search engine capabilities. Queue remains accessible; do not imply unsupported library editing. |
-| Focus | Current cover, title/artist/album, transport and restrained progress | Queue and playback settings available without changing playback context. |
+| Focus | Centered cover and metadata composition, wrapped title/artist/album, playback status | Queue and playback settings available without changing playback context. |
 | Visualizer | Spectrum, PCM Waveform, Torus, Sphere | Persistent mode name, source/capture status, compact now-playing and transport. |
 | Lyrics | Readable synchronized text, current line, optional artwork | Show plain lyrics when synchronization is unavailable; clear missing/loading states. |
 
@@ -78,14 +79,24 @@ points to validate in Ghostty, not assumptions about the current layout.
 
 | Size | Behavior |
 | --- | --- |
-| At least 120 columns and 32 rows | Optional queue/support column; artwork and main content side by side where useful. |
-| 80–119 columns, at least 24 rows | Primary content takes priority; supporting panels stack or become overlays; compact transport. |
-| 40–79 columns or limited height | Single main region, concise navigation and transport; omit artwork before truncating essential controls/metadata. |
+| At least 120 columns and 32 rows | Library has a 28–38 column queue/recent sidebar; Focus, Visualizer and Lyrics use the full width. Artwork and main content sit side by side where useful. |
+| 70–119 columns | Library keeps a narrow sidebar; listening screens use the full width. Queue opens explicitly with `c`. |
+| 40–69 columns or limited height | Single main region below 70 columns, concise navigation and transport; omit artwork before truncating essential controls/metadata. Short sidebars omit recent artwork. |
 | Below 40 columns or 12 rows | Minimal now-playing/status and resize hint, with pause/quit/help still working. No invalid dimensions or offscreen hit targets. |
 
 Test resize while search, help, account and EQ overlays are open. Clip long
 Unicode titles using display-cell width; avoid byte slicing and line overflow.
 When artwork would crowd lyrics, hide it using the existing width policy.
+
+The header keeps the brand at the left and the toolbar at the right, with
+spaced screen navigation below. Library rows align title/artist columns when
+there is room; queue durations retain their right-hand column even for long
+titles. The transport uses one separator, two content rows and a bottom margin.
+At 68 content columns it includes clickable previous/play/next controls,
+elapsed/progress/total time and subdued shuffle/repeat/volume. Compact transport
+retains play and seeking. Full or short help hints remain whole alongside long
+metadata. Lyrics gain alternate breathing rows at sufficient height, a centered
+short block, and an explicit current-line marker for reduced-color terminals.
 
 ## Artwork and motion
 

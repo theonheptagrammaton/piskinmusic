@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/k1y0miiii/applemusic-tui/engine"
 )
 
@@ -132,13 +133,21 @@ func (m model) libraryPanel(w, h int) string {
 		if i == m.libraryTab {
 			label = "[" + name + "]"
 		}
-		tabs += label + " "
+		st := lipgloss.NewStyle().Foreground(fgFaint)
+		if i == m.libraryTab {
+			st = st.Foreground(fgBright).Bold(true)
+		}
+		tabs += st.Render(label) + " "
+	}
+	categoryHint := lipgloss.NewStyle().Foreground(fgFaint).Render("[ / ] category")
+	if gap := w - lipgloss.Width(tabs) - lipgloss.Width(categoryHint); gap >= 2 {
+		tabs += strings.Repeat(" ", gap) + categoryHint
 	}
 	rows := h - 2
 	list := m.libraryList(m.libraryTab)
 	sel := m.librarySel[m.libraryTab]
 	start := listWindow(sel, len(list), rows)
-	lines := []string{pad(lipgloss.NewStyle().Foreground(fgDim).Render(tabs), w)}
+	lines := []string{pad(tabs, w)}
 	for r := 0; r < rows; r++ {
 		i := start + r
 		line := ""
@@ -147,12 +156,7 @@ func (m model) libraryPanel(w, h int) string {
 			if i == sel {
 				marker = "▸ "
 			}
-			line = marker + list[i].Title + " — " + list[i].Artist
-			if m.focus == focusLibrary && i == sel {
-				line = selectedRow(line, w)
-			} else {
-				line = lipgloss.NewStyle().Foreground(fgDim).Render(line)
-			}
+			line = listTrack(marker, list[i].Title, list[i].Artist, "", w, m.focus == focusLibrary && i == sel, false)
 		} else if r == 0 && len(list) == 0 {
 			switch {
 			case m.libraryBusy:
@@ -173,25 +177,68 @@ func (m model) metadata(w, rows int) string {
 		title = "Nothing playing"
 		artist = "/ Search Apple Music"
 	}
-	lines := []string{lipgloss.NewStyle().Foreground(fgBright).Bold(true).Render(title), lipgloss.NewStyle().Foreground(fgDim).Render(artist), lipgloss.NewStyle().Foreground(fgFaint).Render(album)}
+	if w <= 0 || rows <= 0 {
+		return ""
+	}
+	wrap := func(s string, tone lipgloss.Color, bold bool) string {
+		lines := strings.Split(ansi.Wrap(s, w, ""), "\n")
+		if len(lines) > 2 {
+			lines = []string{lines[0], strings.TrimRight(ellipsize(strings.Join(lines[1:], " "), w), " ")}
+		}
+		return lipgloss.NewStyle().Foreground(tone).Bold(bold).Render(strings.Join(lines, "\n"))
+	}
+	lines := []string{wrap(title, fgBright, true)}
+	if rows >= 8 {
+		lines = append(lines, "")
+	}
+	lines = append(lines, wrap(artist, fgDim, false))
+	if album != "" {
+		lines = append(lines, wrap(album, fgFaint, false))
+	}
+	if rows >= 10 {
+		state := "PAUSED"
+		if title == "Nothing playing" {
+			state = "READY TO LISTEN"
+		} else if m.st.Playing {
+			state = "PLAYING"
+		}
+		lines = append(lines, "", lipgloss.NewStyle().Foreground(fgFaint).Render(state))
+	}
 	if m.audioInitializing() {
-		lines = append(lines, m.audioInitializingLine())
+		lines = append(lines, ansi.Wrap(m.audioInitializingLine(), w, ""))
 	}
 	if m.note != "" {
-		lines = append(lines, m.note)
+		lines = append(lines, wrap(m.note, fgDim, false))
 	}
-	return fitBlock(strings.Join(lines, "\n"), w, rows)
+	return strings.Join(lines, "\n")
 }
 func (m model) focusPanel(w, h int) string {
 	rows := h - 1
-	cols := min(48, min(rows*2, w-34))
+	if w <= 0 || rows <= 0 {
+		return ""
+	}
+	const gap = 5
+	cols := min(48, min((rows-2)*2, w-gap-24))
 	cols -= cols % 2
 	if !configBool(m.cfg, "artwork.enabled", true) || m.art == nil || cols < artworkMinCols || rows < 8 {
-		return m.metadata(w, rows)
+		textW := min(w, 50)
+		return centeredBlock(m.metadata(textW, rows), w, rows)
 	}
 	art := strings.Join(m.artworkRows(m.art, cols, cols/2), "\n")
-	left := fitBlock(art, cols, rows)
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", artworkGap), m.metadata(w-cols-artworkGap, rows))
+	textW := min(40, w-cols-gap)
+	text := m.metadata(textW, rows)
+	composition := lipgloss.JoinHorizontal(lipgloss.Center, art, strings.Repeat(" ", gap), fitBlock(text, textW, min(rows, lipgloss.Height(text))))
+	return centeredBlock(composition, w, rows)
+}
+
+// Center a natural-size composition; clamp before placing so long metadata
+// cannot push content or pointer geometry beyond the terminal.
+func centeredBlock(s string, w, h int) string {
+	if w <= 0 || h <= 0 {
+		return ""
+	}
+	s = fitBlock(s, min(w, lipgloss.Width(s)), min(h, lipgloss.Height(s)))
+	return fitBlock(lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, s), w, h)
 }
 
 func (m model) header(l layout) string {
@@ -200,14 +247,14 @@ func (m model) header(l layout) string {
 		return m.renderCache.header
 	}
 	brand := lipgloss.NewStyle().Foreground(fgBright).Bold(true).Render("PISKIN MUSIC")
-	top := pad(brand, m.w)
+	top := " " + brand
 	if len(l.actions) > 0 {
-		top = brand + strings.Repeat(" ", max(1, l.actions[0].x-lipgloss.Width(brand)))
+		top += strings.Repeat(" ", max(1, l.actions[0].x-lipgloss.Width(top)))
 		for _, a := range l.actions {
 			top += lipgloss.NewStyle().Foreground(fgDim).Render(a.label) + " "
 		}
 	}
-	nav := ""
+	nav := " "
 	for i, r := range l.nav {
 		label := m.screenLabel(i)
 		if i == int(m.screen) {
@@ -215,7 +262,7 @@ func (m model) header(l layout) string {
 		} else {
 			label = lipgloss.NewStyle().Foreground(fgDim).Render(label)
 		}
-		nav += label + " "
+		nav += label + "  "
 	}
 	result := pad(top, m.w) + "\n" + pad(nav, m.w)
 	if m.renderCache != nil {
@@ -262,8 +309,15 @@ func (m model) compactTransport(w, barW int) string {
 	if m.st.Dur > 0 {
 		frac = min(1, max(0, float64(m.st.Pos)/float64(m.st.Dur)))
 	}
-	line := " ▄ " + icon + fmtTime(m.st.Pos) + " " + m.progressBar(barW, int(frac*float64(barW))) + " " + fmtTime(m.st.Dur)
-	return pad(title, w) + "\n" + pad(line, w)
+	line := "   " + lipgloss.NewStyle().Foreground(accentHi).Render(icon) +
+		lipgloss.NewStyle().Foreground(fgDim).Render(fmtTime(m.st.Pos)+" ") +
+		m.progressBar(barW, int(frac*float64(barW))) +
+		lipgloss.NewStyle().Foreground(fgDim).Render(" "+fmtTime(m.st.Dur))
+	mark := "  "
+	if m.focus == focusPlayer {
+		mark = "▸ "
+	}
+	return lipgloss.NewStyle().Foreground(fgBright).Bold(true).Render(ellipsize(mark+title, w)) + "\n" + pad(line, w)
 }
 
 func (m model) eqActions(l layout) []keyTarget {
@@ -293,6 +347,8 @@ func (m model) transportActions(l layout) []keyTarget {
 	right := fmt.Sprintf("⇄ %s  ↻ %s  vol ", shuf, rep) + strings.Repeat("▮", 6) + fmt.Sprintf(" %d%% ", m.st.Volume)
 	x := l.transport.x + l.transport.w - lipgloss.Width(right)
 	return []keyTarget{
+		{rect{l.transport.x + 1, l.transport.y + 1, 1, 1}, "p", "‹"},
+		{rect{l.transport.x + 7, l.transport.y + 1, 1, 1}, "n", "›"},
 		{rect{x, l.transport.y + 1, lipgloss.Width("⇄ " + shuf), 1}, "s", ""},
 		{rect{x + lipgloss.Width("⇄ "+shuf+"  "), l.transport.y + 1, lipgloss.Width("↻ " + rep), 1}, "r", ""},
 	}

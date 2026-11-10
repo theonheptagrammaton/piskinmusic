@@ -82,33 +82,38 @@ func (m model) staticLayout() layout {
 	if !l.visible {
 		return l
 	}
-	x := 0
+	x := 1
 	for i := range screenNames {
 		label := m.screenLabel(i)
 		l.nav[i] = rect{x, 1, lipgloss.Width(label), 1}
-		x += lipgloss.Width(label) + 1
+		x += lipgloss.Width(label) + 2
 	}
 	labels := []string{"/ Search", "c Queue", "Q EQ", "a Account", "? Help"}
-	if m.w < 70 {
-		labels = []string{"/Find", "cQ", "QEQ", "aAcct", "?Help"}
+	toolbarWidth := func(labels []string) int {
+		width := len(labels) - 1
+		for _, label := range labels {
+			width += lipgloss.Width(label)
+		}
+		return width
+	}
+	toolbarX := 2 + lipgloss.Width("PISKIN MUSIC")
+	if m.w < toolbarX+toolbarWidth(labels)+1 {
+		labels = []string{"/ Find", "c Queue", "Q EQ", "a", "?"}
 	}
 	keys := []string{"/", "c", "Q", "a", "?"}
-	x = 13
+	x = max(toolbarX, m.w-1-toolbarWidth(labels))
 	for i, label := range labels {
 		l.actions = append(l.actions, keyTarget{rect{x, 0, lipgloss.Width(label), 1}, keys[i], label})
 		x += lipgloss.Width(label) + 1
 	}
 	bodyH := m.h - 6
 	l.main = rect{0, 2, m.w, bodyH}
-	showQueue := m.queueOpen || (m.screen == screenLibrary && m.w >= 70) || (m.w >= 120 && m.h >= 32)
+	showQueue := m.queueOpen || (m.screen == screenLibrary && m.w >= 70)
 	if m.eqOpen {
 		showQueue = false
 	}
 	if showQueue {
-		l.leftW = m.w * 42 / 100
-		if m.screen != screenLibrary {
-			l.leftW = min(42, m.w/3)
-		}
+		l.leftW = min(38, max(28, m.w*28/100))
 		if m.queueOpen {
 			l.leftW = m.w
 		}
@@ -151,8 +156,8 @@ func (m model) staticLayout() layout {
 }
 
 // queueRows is how many tracks the queue panel shows at once, and queueTop the
-// screen row the first of them is drawn on. panel() spends one row on the
-// border and one on its title before the body starts.
+// screen row the first of them is drawn on. Sections reserve one breathing
+// row and one heading row before the body starts.
 func (l layout) queueRows() int { return max(0, l.qh-1) }
 func (l layout) queueTop() int  { return l.queueY + 2 }
 
@@ -161,9 +166,8 @@ func (l layout) queueTop() int  { return l.queueY + 2 }
 func (l layout) recentTop() int { return l.queueY + l.qh + 2 + 2 }
 
 // progressGeometry returns the column the progress bar starts at within the
-// transport's content, and its width. transportPanel lays the second line out
-// as " ▄▄ " then the play icon then the elapsed time, which is six cells plus
-// the clock before the bar begins.
+// transport's content, and its width. The wide transport reserves ten cells
+// for previous/play/next; the compact form uses four for play.
 func (m model) progressGeometry(w int) (x, width int) {
 	if w < 68 {
 		x = 4 + lipgloss.Width(fmtTime(m.st.Pos)+" ")
@@ -177,8 +181,8 @@ func (m model) progressGeometry(w int) (x, width int) {
 	}
 	right := fmt.Sprintf("⇄ %s  ↻ %s  vol ", shuf, rep) +
 		strings.Repeat("▮", 6) + fmt.Sprintf(" %d%% ", m.st.Volume)
-	barW := max(10, w-lipgloss.Width(times)-lipgloss.Width(timee)-lipgloss.Width(right)-8)
-	return 6 + lipgloss.Width(times), barW
+	barW := max(10, w-lipgloss.Width(times)-lipgloss.Width(timee)-lipgloss.Width(right)-12)
+	return 10 + lipgloss.Width(times), barW
 }
 
 // recentGrid is shared by the component and tile hit testing, including the

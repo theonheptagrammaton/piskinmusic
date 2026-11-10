@@ -46,7 +46,7 @@ try:
     send(b"3")                  # Visualizer
     send(b"?")                  # blocking help
     send(b"\x1b")               # dismiss help
-    send(b"\x1b[<0;36;2M")      # navigation: Lyrics (after active Viz label)
+    send(b"\x1b[<0;38;2M")      # navigation: Lyrics (after active Viz label)
     send(b"1")                  # Library
     send(b"c")                  # queue overlay
     send(b"\x1b")               # close queue

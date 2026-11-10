@@ -47,7 +47,7 @@ type theme struct {
 // PISKIN is the fixed monochrome default. All original named palettes remain
 // explicit legacy choices, including artwork-driven "auto".
 var themes = []theme{
-	{name: "piskin", accent: "#D0D0D0", accentHi: "#FFFFFF", accentLo: "#707070", fgBright: "#FFFFFF", fgDim: "#A0A0A0", fgFaint: "#808080", borderDim: "#505050", selBg: "#FFFFFF", background: "#000000", selectedText: "#000000"},
+	{name: "piskin", accent: "#D0D0D0", accentHi: "#FFFFFF", accentLo: "#707070", fgBright: "#FFFFFF", fgDim: "#A0A0A0", fgFaint: "#808080", borderDim: "#303030", selBg: "#FFFFFF", background: "#000000", selectedText: "#000000"},
 	{name: "apple", accent: "#FA233B", accentHi: "#FB5C74", accentLo: "#8A1E30", fgBright: "#F2F2F7", fgDim: "#8E8E93", fgFaint: "#5A5A5E", borderDim: "#3A3A3C", selBg: "#2C2C2E", background: "#000000", selectedText: "#F2F2F7"},
 	{name: "catppuccin", accent: "#F38BA8", accentHi: "#F5C2E7", accentLo: "#7D3C50", fgBright: "#CDD6F4", fgDim: "#9399B2", fgFaint: "#6C7086", borderDim: "#45475A", selBg: "#313244", background: "#000000", selectedText: "#CDD6F4"},
 	{name: "gruvbox", accent: "#FB4934", accentHi: "#FE8019", accentLo: "#9D0006", fgBright: "#EBDBB2", fgDim: "#A89984", fgFaint: "#7C6F64", borderDim: "#504945", selBg: "#3C3836", background: "#000000", selectedText: "#EBDBB2"},

@@ -70,8 +70,13 @@ func TestInitializingMessageIsRendered(t *testing.T) {
 		},
 	}
 
-	if got := m.View(); strings.Count(got, "initializing Apple Music audio") < 2 {
-		t.Fatalf("View() should contain the initialization message in queue and transport:\n%s", got)
+	l := m.layout()
+	for name, content := range map[string]string{
+		"queue": m.queuePanel(l.qw, l.qh), "transport": m.transportPanel(l.transport.w),
+	} {
+		if text := strings.Join(strings.Fields(ansi.Strip(content)), " "); !strings.Contains(text, "initializing Apple Music audio") {
+			t.Fatalf("%s should show the full initialization message, wrapping in a narrow sidebar:\n%s", name, content)
+		}
 	}
 }
 

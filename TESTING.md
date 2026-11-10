@@ -856,3 +856,36 @@ and no applicable rules on `development/performance`. Pushes target only
 `origin/development/performance`, which now tracks that unprotected branch;
 remote `main` remains at `1e2b3be`. No upstream push, tag or public release was
 created. The final documentation-only receipt does not change tested Go source.
+
+## Visual polish — 2026-11-11
+
+Implemented the approved appearance changes: right-aligned toolbar and spaced
+navigation, 28–38-column Library sidebar, full-width listening screens with an
+explicit queue overlay, centered Focus artwork/metadata, quiet section rules,
+aligned list durations, and a borderless transport with clickable previous/next
+controls. Lyrics use more line spacing when height permits and center short
+blocks; their active line has a textual marker. Artwork retains its colors and
+the default shell remains monochrome. Playback/capture implementations and
+dependencies are unchanged.
+
+Verified locally on Linux ARM64 with `go1.27.2-X:nodwarf5`:
+
+- Baseline and final `go test ./...`: PASS.
+- Final `go test -race ./...` and `go vet ./...`: PASS.
+- `go build -o amtui .` and `CGO_ENABLED=0 go build ./...`: PASS.
+- Compiled-test PTY acceptance through `scripts/terminal-acceptance.py`: PASS
+  for keyboard, mouse play/seek/navigation, blocking help, focus and resize.
+  Updated the scripted Lyrics click for the new navigation spacing.
+- Added regressions for actual rendered toolbar/navigation/transport targets
+  across 40–180 columns, including the full-toolbar breakpoint; content/sidebar
+  proportions; Focus centering with/without artwork and long Unicode metadata;
+  preserved queue durations and help hints; centered/spaced lyrics and their
+  no-color current-line marker. Existing resize/scroll/overlay checks pass.
+- Inspected images rendered from production `View()` output at 120×35, 80×24
+  and 40×12 using synthetic metadata/artwork. The visualizer preview was
+  explicitly labeled DEMO/SIMULATED. These are fixture previews, not device
+  screenshots or evidence of fresh live capture.
+
+No new subscription playback, audible-output or permissioned capture pass is
+claimed for this appearance-only change. Previous platform runtime evidence and
+outstanding macOS permissioned-capture checks retain their existing status.

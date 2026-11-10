@@ -177,8 +177,12 @@ func TestTextFocusMarkersSurviveWithoutColor(t *testing.T) {
 		if !strings.Contains(frame, m.screenLabel(int(s))) {
 			t.Fatal("active navigation lacks textual marker")
 		}
-		if !strings.Contains(frame, "[QUEUE") || !strings.Contains(frame, "▸▶") {
-			t.Fatal("queue focus or playing marker lost")
+		if s == screenLibrary {
+			if !strings.Contains(frame, "[QUEUE") || !strings.Contains(frame, "▸▶") {
+				t.Fatal("queue focus or playing marker lost")
+			}
+		} else if m.layout().queueBody.h != 0 {
+			t.Fatal("listening screen shows an unrequested queue")
 		}
 	}
 }
