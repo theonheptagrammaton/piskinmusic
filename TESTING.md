@@ -824,3 +824,35 @@ Six-target packaging then failed in notice generation because the fresh macOS
 module cache lacked Windows-only `coninput`. The notices prerequisite now
 downloads every pinned requirement before enumerating license files. The failed
 packaging attempt is not counted as a release packaging pass.
+
+### Final native and packaging results
+
+Source `dca2f82` passed the corrected [macOS matrix and six-target packaging
+workflow](https://github.com/theonheptagrammaton/piskinmusic/actions/runs/42916388054)
+and [native Windows workflow](https://github.com/theonheptagrammaton/piskinmusic/actions/runs/42916388133).
+ARM64/Intel both passed `make verify`; ARM64 then built native cgo Darwin
+arm64/amd64 and pure-Go Linux/Windows arm64/amd64 archives. The run uploaded
+`amtui-development-packages` (six archives plus SHA256SUMS) without publishing
+a release. A separate local test reproduced every notice byte-for-byte from an
+initially empty module cache before the packaging fix was committed. Module
+versions/checksums and the original application LICENSE remain unchanged.
+
+Local `dist/` holds the four Linux/Windows development archives. Their checksums,
+contents and notice/license/config/document bytes were verified against source;
+the packaged ARM64 executable returned `PISKIN MUSIC (amtui) phase5-dev linux/arm64`.
+The six native-run artifacts were also downloaded and independently inspected:
+all SHA-256 hashes, required entries and original LICENSE bytes match; ELF/PE/
+Mach-O CPU headers match each named target; both native cgo Mach-O executables
+declare **minos 14.2**. The downloaded bundle is available in this session at
+`/tmp/piskin-phase5-native-dist/` and from the linked successful run. Permissioned
+macOS live capture remains **NOT VERIFIED**, and phase 5 is not marked fully
+complete. The tested production Go source is identical across `5429d5b`,
+`ae54bd5` and `dca2f82`; the latter changes correct CI/package prerequisites and
+record evidence.
+
+Branch verification identified the configured user-owned fork
+`theonheptagrammaton/piskinmusic`, ADMIN push permission, `main` as the default,
+and no applicable rules on `development/performance`. Pushes target only
+`origin/development/performance`, which now tracks that unprotected branch;
+remote `main` remains at `1e2b3be`. No upstream push, tag or public release was
+created. The final documentation-only receipt does not change tested Go source.

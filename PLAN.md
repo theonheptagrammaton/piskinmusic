@@ -188,9 +188,9 @@ packaging. Capture/history remain independent of visibility and waveform storage
 retains its fixed bounds. No dependencies, installers, desktop configuration or
 DRM changed. Compatibility and migration notes are in docs/RELEASE_NOTES.md.
 
-Linux checks and measurements are recorded in TESTING.md. Native permissioned
-macOS capture and native Windows runtime gates must remain explicit; cross-builds
-and silent Linux capture do not satisfy them. Development CI adds native macOS
-verification/packaging and retains Windows checks. The current instruction
+Linux checks and measurements are recorded in TESTING.md. Native macOS ARM64/Intel
+verification and six-target packaging pass, as do native Windows browser/installer
+checks. Permissioned live macOS capture remains open; cross-builds, native unit
+tests and silent Linux capture do not satisfy it. The current instruction
 authorizes completed commits to the verified user-owned fork's development
 branch, `development/performance`; `main` and upstream are not push targets.
