@@ -794,9 +794,8 @@ compared to the original: PASS. These are development artifacts under ignored
 `dist/`, not a published release. No release tag was created.
 
 **Still required before phase 5 can be declared fully complete:** native macOS
-permissioned playing/paused/resumed capture, plus native
-Windows runtime/installer results. This Linux session cannot execute CoreAudio
-or Windows desktop APIs. The macOS development workflow runs native cgo tests,
+permissioned playing/paused/resumed capture. This Linux session cannot execute
+CoreAudio directly. The macOS development workflow runs native cgo tests,
 race/vet/builds, the Mach-O deployment check and six-target packaging; the Windows
 workflow retains its browser/installer acceptance. Hosted native unit tests alone
 cannot establish permissioned live capture. The strengthened macOS live smoke
@@ -811,3 +810,17 @@ records macOS 14 retirement on November 2, 2026. Development verification now
 uses the supported `macos-15` and `macos-15-intel` labels for native ARM64/Intel
 checks; release packaging uses `macos-15`. The deployment target remains 14.2.
 The cancelled attempt is not a test pass.
+
+On source `ae54bd5`, [native Windows CI](https://github.com/theonheptagrammaton/piskinmusic/actions/runs/42915361625)
+passed vet, all tests, browser window integration and installation/aliases through
+Windows PowerShell 5.1 and PowerShell 7 (including repeated install/PATH behavior).
+System capture remains unsupported on Windows.
+
+The [native macOS run](https://github.com/theonheptagrammaton/piskinmusic/actions/runs/42915361607)
+passed `make verify` on both ARM64 and Intel: tests, race, vet, cgo/nocgo builds
+and `vtool` output confirming **minos 14.2 / SDK 15.5**. These are native
+conversion/ring/lifecycle checks; the permissioned live tests were not enabled.
+Six-target packaging then failed in notice generation because the fresh macOS
+module cache lacked Windows-only `coninput`. The notices prerequisite now
+downloads every pinned requirement before enumerating license files. The failed
+packaging attempt is not counted as a release packaging pass.

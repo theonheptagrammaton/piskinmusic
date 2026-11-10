@@ -11,6 +11,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION)
 .PHONY: test test-race vet build build-nocgo verify verify-minos dist dist-clean notices
 
 notices:
+	$(GO) mod download
 	GO="$(GO)" python3 scripts/license-notices.py
 
 test:
