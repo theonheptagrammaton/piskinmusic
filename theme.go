@@ -14,34 +14,53 @@ import (
 	colorful "github.com/lucasb-eyer/go-colorful"
 )
 
+// The live palette. Mutable because themes swap it at runtime; safe because
+// Bubble Tea runs Update and View on one goroutine.
+var (
+	accent       lipgloss.Color
+	accentHi     lipgloss.Color
+	accentLo     lipgloss.Color
+	fgBright     lipgloss.Color
+	fgDim        lipgloss.Color
+	fgFaint      lipgloss.Color
+	borderDim    lipgloss.Color
+	selBg        lipgloss.Color
+	background   lipgloss.Color
+	selectedText lipgloss.Color
+)
+
 // theme is a full palette. The zero-value name "" is never registered.
 type theme struct {
-	name      string
-	accent    lipgloss.Color
-	accentHi  lipgloss.Color
-	accentLo  lipgloss.Color
-	fgBright  lipgloss.Color
-	fgDim     lipgloss.Color
-	fgFaint   lipgloss.Color
-	borderDim lipgloss.Color
-	selBg     lipgloss.Color
+	name         string
+	accent       lipgloss.Color
+	accentHi     lipgloss.Color
+	accentLo     lipgloss.Color
+	fgBright     lipgloss.Color
+	fgDim        lipgloss.Color
+	fgFaint      lipgloss.Color
+	borderDim    lipgloss.Color
+	selBg        lipgloss.Color
+	background   lipgloss.Color
+	selectedText lipgloss.Color
 }
 
-// themes[0] is the default. "auto" carries the apple palette as its base and
-// has its accent trio replaced per track by the artwork's dominant color.
+// PISKIN is the fixed monochrome default. All original named palettes remain
+// explicit legacy choices, including artwork-driven "auto".
 var themes = []theme{
-	{"apple", "#FA233B", "#FB5C74", "#8A1E30", "#F2F2F7", "#8E8E93", "#5A5A5E", "#3A3A3C", "#2C2C2E"},
-	{"catppuccin", "#F38BA8", "#F5C2E7", "#7D3C50", "#CDD6F4", "#9399B2", "#6C7086", "#45475A", "#313244"},
-	{"gruvbox", "#FB4934", "#FE8019", "#9D0006", "#EBDBB2", "#A89984", "#7C6F64", "#504945", "#3C3836"},
-	{"nord", "#88C0D0", "#8FBCBB", "#5E81AC", "#ECEFF4", "#D8DEE9", "#7B88A1", "#434C5E", "#3B4252"},
-	{"mono", "#E5E5E5", "#FFFFFF", "#7A7A7A", "#F5F5F5", "#9A9A9A", "#6A6A6A", "#3A3A3A", "#2A2A2A"},
-	{"auto", "#FA233B", "#FB5C74", "#8A1E30", "#F2F2F7", "#8E8E93", "#5A5A5E", "#3A3A3C", "#2C2C2E"},
+	{name: "piskin", accent: "#D0D0D0", accentHi: "#FFFFFF", accentLo: "#707070", fgBright: "#FFFFFF", fgDim: "#A0A0A0", fgFaint: "#808080", borderDim: "#505050", selBg: "#FFFFFF", background: "#000000", selectedText: "#000000"},
+	{name: "apple", accent: "#FA233B", accentHi: "#FB5C74", accentLo: "#8A1E30", fgBright: "#F2F2F7", fgDim: "#8E8E93", fgFaint: "#5A5A5E", borderDim: "#3A3A3C", selBg: "#2C2C2E", background: "#000000", selectedText: "#F2F2F7"},
+	{name: "catppuccin", accent: "#F38BA8", accentHi: "#F5C2E7", accentLo: "#7D3C50", fgBright: "#CDD6F4", fgDim: "#9399B2", fgFaint: "#6C7086", borderDim: "#45475A", selBg: "#313244", background: "#000000", selectedText: "#CDD6F4"},
+	{name: "gruvbox", accent: "#FB4934", accentHi: "#FE8019", accentLo: "#9D0006", fgBright: "#EBDBB2", fgDim: "#A89984", fgFaint: "#7C6F64", borderDim: "#504945", selBg: "#3C3836", background: "#000000", selectedText: "#EBDBB2"},
+	{name: "nord", accent: "#88C0D0", accentHi: "#8FBCBB", accentLo: "#5E81AC", fgBright: "#ECEFF4", fgDim: "#D8DEE9", fgFaint: "#7B88A1", borderDim: "#434C5E", selBg: "#3B4252", background: "#000000", selectedText: "#ECEFF4"},
+	{name: "mono", accent: "#E5E5E5", accentHi: "#FFFFFF", accentLo: "#7A7A7A", fgBright: "#F5F5F5", fgDim: "#9A9A9A", fgFaint: "#6A6A6A", borderDim: "#3A3A3A", selBg: "#2A2A2A", background: "#000000", selectedText: "#F5F5F5"},
+	{name: "auto", accent: "#FA233B", accentHi: "#FB5C74", accentLo: "#8A1E30", fgBright: "#F2F2F7", fgDim: "#8E8E93", fgFaint: "#5A5A5E", borderDim: "#3A3A3C", selBg: "#2C2C2E", background: "#000000", selectedText: "#F2F2F7"},
 }
 
 func applyTheme(t theme) {
 	accent, accentHi, accentLo = t.accent, t.accentHi, t.accentLo
 	fgBright, fgDim, fgFaint = t.fgBright, t.fgDim, t.fgFaint
 	borderDim, selBg = t.borderDim, t.selBg
+	background, selectedText = t.background, t.selectedText
 }
 
 func themeByName(name string) *theme {
@@ -332,9 +351,23 @@ func themeFromConfig(cfg map[string]string, saved string) theme {
 	if name == "" {
 		name = saved
 	}
+	// An existing color-only config was an explicit customization of the old
+	// apple default. Keep that legacy base unless a named choice (including a
+	// saved piskin choice) takes precedence. Resolution never rewrites the file.
+	if name == "" {
+		for _, key := range []string{"accent", "accent_hi", "accent_lo", "fg_bright", "fg_dim", "fg_faint", "border_dim", "sel_bg", "background", "selected_text"} {
+			if cfg["theme."+key] != "" {
+				name = "apple"
+				break
+			}
+		}
+	}
 	t := themes[0]
 	if found := themeByName(name); found != nil {
 		t = *found
+	}
+	if t.name == "piskin" {
+		return t // the standard shell is always monochrome
 	}
 	set := func(key string, dst *lipgloss.Color) {
 		if v := cfg["theme."+key]; v != "" {
@@ -349,5 +382,7 @@ func themeFromConfig(cfg map[string]string, saved string) theme {
 	set("fg_faint", &t.fgFaint)
 	set("border_dim", &t.borderDim)
 	set("sel_bg", &t.selBg)
+	set("background", &t.background)
+	set("selected_text", &t.selectedText)
 	return t
 }

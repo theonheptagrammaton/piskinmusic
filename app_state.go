@@ -91,17 +91,27 @@ type (
 )
 
 type model struct {
-	w, h   int
-	t      float64 // seconds since start, drives animation
-	phase  phase
-	status string
-	note   string
-	noteAt float64 // m.t when the note was set; expires after 6s
-	eng    playback
-	cmds   commandSet // optional per-model command factories; zero value uses production defaults
-	st     engine.State
-	focus  int // 0 queue, 1 recent, 2 player
-	selIdx int
+	w, h         int
+	t            float64 // seconds since start, drives animation
+	phase        phase
+	status       string
+	note         string
+	noteAt       float64 // m.t when the note was set; expires after 6s
+	eng          playback
+	cmds         commandSet // optional per-model command factories; zero value uses production defaults
+	st           engine.State
+	focus        int // focusQueue, focusRecent, focusPlayer or focusLibrary
+	selIdx       int
+	screen       screen
+	screenFocus  [4]int
+	queueOpen    bool
+	returnFocus  int
+	helpPage     int
+	library      engine.SearchResults
+	libraryBusy  bool
+	libraryError string
+	libraryTab   int
+	librarySel   [3]int
 
 	// recently played, shown as a cover grid under the queue
 	recent    []engine.Track
@@ -300,9 +310,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
-		if m.focus == focusRecent && !m.recentVisible() {
-			m.focus = focusPlayer // the grid just shrank out of the layout
-		}
+		m.normalizeFocus()
 	case tickMsg:
 		var visualizerClose tea.Cmd
 		now := time.Time(msg)
@@ -368,6 +376,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, listenStatus(m.statusCh)
 	case readyMsg:
 		m.phase, m.eng = phaseReady, msg.eng
+		m.libraryBusy = true
 		cmds := []tea.Cmd{
 			m.fetchState(),
 			m.libraryCmd(), // fills the recently-played grid
@@ -526,6 +535,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case searchMsg:
 		m.sBusy = false
+		if msg.keepInput {
+			m.library, m.libraryBusy, m.libraryError = msg.res, false, ""
+			if msg.err != nil {
+				m.libraryError = msg.err.Error()
+			}
+			for tab := range m.librarySel {
+				m.librarySel[tab] = min(m.librarySel[tab], max(0, len(m.libraryList(tab))-1))
+			}
+		}
 		if msg.err != nil {
 			m.note, m.noteAt = msg.err.Error(), m.t
 		}
@@ -541,6 +559,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(msg.res.Recent) > 0 {
 			m.recent = msg.res.Recent
 			m.recentSel = min(m.recentSel, len(m.recent)-1)
+			m.librarySel[2] = min(m.librarySel[2], len(m.recent)-1)
 			return m, tea.Batch(m.fetchTileArtCmds()...)
 		}
 	case tileArtMsg:
@@ -565,11 +584,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseMsg:
 		return m.updateMouse(msg)
 	case tea.KeyMsg:
-		// Any key dismisses help, and that key does nothing else — reading the
-		// list should never fire the command you were looking up.
+		// Paging keys navigate help; other keys dismiss it without also
+		// firing the command being looked up.
 		if m.helpOpen {
-			m.helpOpen = false
-			return m, nil
+			return m.updateHelp(msg)
 		}
 		if m.acctOpen {
 			return m.updateAccount(msg)
@@ -588,6 +606,7 @@ const (
 	focusQueue = iota
 	focusRecent
 	focusPlayer
+	focusLibrary
 )
 
 // recentCols is how many cover tiles sit in a grid row. Fixed at two: it keeps
@@ -612,8 +631,11 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	eng := m.eng
 	if m.eqOpen {
 		switch msg.String() {
+		case "enter":
+			return m, nil // EQ owns input; do not play a hidden list selection
 		case "esc", "Q":
 			m.eqOpen = false
+			m.normalizeFocus()
 			return m, nil
 		case "left", "h":
 			m.eqSel = (m.eqSel + 9) % 10
@@ -651,10 +673,30 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			eng.Close()
 		}
 		return m, tea.Quit
-	case "tab":
-		m.focus = (m.focus + 1) % 3
-		if m.focus == focusRecent && !m.recentVisible() {
-			m.focus = focusPlayer
+	case "tab", "shift+tab":
+		if !m.eqOpen {
+			m.cycleFocus(msg.String() == "shift+tab")
+		}
+	case "1", "2", "3", "4":
+		if !m.eqOpen && !m.queueOpen {
+			m.selectScreen(screen(msg.String()[0] - '1'))
+		}
+	case "c":
+		if !m.eqOpen {
+			m.toggleQueue()
+		}
+	case "esc":
+		if m.queueOpen {
+			m.toggleQueue()
+		}
+	case "[", "]":
+		if !m.eqOpen && !m.queueOpen && m.screen == screenLibrary {
+			step := 1
+			if msg.String() == "[" {
+				step = 2
+			}
+			m.libraryTab = (m.libraryTab + step) % 3
+			m.focus = focusLibrary
 		}
 	case " ":
 		m.st.Playing = !m.st.Playing
@@ -668,7 +710,7 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "r":
 		return m, doCmd(func() error { return eng.CycleRepeat() })
 	case "?":
-		m.helpOpen = true
+		m.helpOpen, m.helpPage = true, 0
 	case "a":
 		m.acctOpen, m.acctLoading = true, true
 		return m, accountCmd(eng)
@@ -702,6 +744,8 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.selIdx = min(m.selIdx+1, max(0, len(m.st.Queue)-1))
 		case focusRecent:
 			m.recentSel = min(m.recentSel+recentCols, max(0, len(m.recent)-1))
+		case focusLibrary:
+			m.librarySel[m.libraryTab] = min(m.librarySel[m.libraryTab]+1, max(0, len(m.libraryList(m.libraryTab))-1))
 		default:
 			m.st.Volume = max(m.st.Volume-5, 0)
 			v := m.st.Volume
@@ -713,12 +757,17 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.selIdx = max(m.selIdx-1, 0)
 		case focusRecent:
 			m.recentSel = max(m.recentSel-recentCols, 0)
+		case focusLibrary:
+			m.librarySel[m.libraryTab] = max(m.librarySel[m.libraryTab]-1, 0)
 		default:
 			m.st.Volume = min(m.st.Volume+5, 100)
 			v := m.st.Volume
 			return m, doCmd(func() error { return eng.SetVolume(v) })
 		}
 	case "enter":
+		if m.focus == focusLibrary {
+			return m.playLibrarySelection()
+		}
 		if m.focus == focusQueue && len(m.st.Queue) > 0 {
 			i := m.selIdx
 			m.loading = m.st.Queue[i].Title

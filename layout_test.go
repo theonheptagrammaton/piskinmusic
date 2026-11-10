@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/k1y0miiii/applemusic-tui/engine"
 )
@@ -81,6 +83,102 @@ func TestLayoutFits(t *testing.T) {
 					}
 				}
 			}
+		}
+	}
+}
+
+// Exercise rendered content as well as clipping. Every nonempty hit rectangle
+// must fit the frame; a clipped picture must never leave an offscreen target.
+func TestResponsiveScreensAndOverlayGeometry(t *testing.T) {
+	for _, size := range [][2]int{{0, 0}, {1, 1}, {39, 11}, {40, 12}, {60, 20}, {80, 24}, {120, 32}, {180, 50}, {120, 12}} {
+		for s := screenLibrary; s <= screenLyrics; s++ {
+			for _, overlay := range []string{"", "search", "help", "account", "EQ", "queue"} {
+				m := recentModel()
+				m.w, m.h, m.screen = size[0], size[1], s
+				m.st.Now.Title = strings.Repeat("音楽 👩🏽‍🎤 é ", 25)
+				m.library.Albums = demoRecent(32)
+				m.librarySel[0] = 25
+				switch overlay {
+				case "search":
+					m.searchOpen = true
+					m.sRes.Songs = demoRecent(32)
+					m.sTab, m.sSel = 1, 25
+				case "help":
+					m.helpOpen = true
+				case "account":
+					m.acctOpen = true
+				case "EQ":
+					m.eqOpen = true
+				case "queue":
+					m.toggleQueue()
+				}
+				next, cmd := m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+				m = next.(model)
+				if cmd != nil {
+					t.Fatal("resize scheduled effects")
+				}
+				frame := m.View()
+				if size[0] == 0 || size[1] == 0 {
+					if frame != "" {
+						t.Fatal("zero-sized terminal rendered")
+					}
+					continue
+				}
+				rows := strings.Split(frame, "\n")
+				if len(rows) != size[1] {
+					t.Fatalf("%v screen %d %s: got %d rows", size, s, overlay, len(rows))
+				}
+				for y, row := range rows {
+					if lipgloss.Width(row) != size[0] {
+						t.Fatalf("%v screen %d %s: row %d width %d", size, s, overlay, y, lipgloss.Width(row))
+					}
+				}
+				l := m.layout()
+				if !l.visible {
+					continue
+				}
+				regions := []rect{l.main, l.queueBody, l.recentBody, l.libraryBody, l.transport, l.progress, l.play}
+				regions = append(regions, l.nav[:]...)
+				regions = append(regions, l.recentTiles[:]...)
+				regions = append(regions, l.libraryTabs[:]...)
+				for _, a := range l.actions {
+					regions = append(regions, a.rect)
+				}
+				for _, r := range regions {
+					if r.w > 0 && r.h > 0 && (r.x < 0 || r.y < 0 || r.x+r.w > m.w || r.y+r.h > m.h) {
+						t.Fatalf("%v screen %d %s: offscreen region %+v", size, s, overlay, r)
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestEachScreenShowsItsOwnPrimaryContent(t *testing.T) {
+	for s, want := range []string{"LIBRARY", "NOW PLAYING", "VISUALIZER", "LYRICS"} {
+		m := recentModel()
+		m.screen = screen(s)
+		if !strings.Contains(m.View(), want) {
+			t.Fatalf("screen %d missing %q", s, want)
+		}
+		if s != int(screenVisualizer) && strings.Contains(m.View(), "SIMULATED") {
+			t.Fatal("inactive visualizer rendered")
+		}
+	}
+}
+
+func TestTextFocusMarkersSurviveWithoutColor(t *testing.T) {
+	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
+	lipgloss.SetColorProfile(termenv.Ascii)
+	for s := screenLibrary; s <= screenLyrics; s++ {
+		m := recentModel()
+		m.screen = s
+		frame := m.View()
+		if !strings.Contains(frame, m.screenLabel(int(s))) {
+			t.Fatal("active navigation lacks textual marker")
+		}
+		if !strings.Contains(frame, "[QUEUE") || !strings.Contains(frame, "▸▶") {
+			t.Fatal("queue focus or playing marker lost")
 		}
 	}
 }

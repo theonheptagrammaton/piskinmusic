@@ -32,10 +32,10 @@ func recentModel() model {
 	}
 }
 
-// Tab must walk queue → recent → player and wrap back.
-func TestTabCyclesThreeZones(t *testing.T) {
+// Tab walks each visible region, including the new library list, then wraps.
+func TestTabCyclesVisibleLibraryZones(t *testing.T) {
 	m := recentModel()
-	want := []int{focusRecent, focusPlayer, focusQueue}
+	want := []int{focusRecent, focusLibrary, focusPlayer, focusQueue}
 	for i, w := range want {
 		next, _ := m.updateKeys(tea.KeyMsg{Type: tea.KeyTab})
 		m = next.(model)
@@ -60,8 +60,8 @@ func TestTabSkipsHiddenRecentGrid(t *testing.T) {
 				t.Fatal("grid should not be visible in this case")
 			}
 			next, _ := tc.m.updateKeys(tea.KeyMsg{Type: tea.KeyTab})
-			if got := next.(model).focus; got != focusPlayer {
-				t.Fatalf("tab from queue landed on %d, want focusPlayer (%d)", got, focusPlayer)
+			if got := next.(model).focus; got != focusLibrary {
+				t.Fatalf("tab from queue landed on %d, want focusLibrary (%d)", got, focusLibrary)
 			}
 		})
 	}

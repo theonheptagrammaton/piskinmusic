@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func (m model) audioInitializingLine() string {
@@ -17,9 +18,10 @@ func (m model) audioInitializingLine() string {
 
 // pad truncates/pads a styled line to exactly w columns.
 func pad(s string, w int) string {
-	if lipgloss.Width(s) > w {
-		s = lipgloss.NewStyle().MaxWidth(w).Render(s)
+	if w <= 0 {
+		return ""
 	}
+	s = ansi.Truncate(s, w, "")
 	return s + strings.Repeat(" ", max(0, w-lipgloss.Width(s)))
 }
 
@@ -41,6 +43,7 @@ func panel(title, body string, w, h int, focused bool, accentNow lipgloss.Color)
 	bc, tc := borderDim, fgFaint
 	if focused {
 		bc, tc = accentNow, accentHi
+		title = "[" + title + "]"
 	}
 	head := lipgloss.NewStyle().Foreground(tc).Bold(true).Render(" " + title)
 	content := pad(head, w) + "\n" + body
@@ -87,6 +90,13 @@ func (m model) queuePanel(w, h int) string {
 		if i == m.st.QueuePos {
 			prefix, ts, as = "▶ ", fgBright, fgDim
 		}
+		if i == m.selIdx {
+			if i == m.st.QueuePos {
+				prefix = "▸▶"
+			} else {
+				prefix = "▸ "
+			}
+		}
 		left := lipgloss.NewStyle().Foreground(accentHi).Render(prefix) +
 			lipgloss.NewStyle().Foreground(ts).Render(tr.Title) +
 			lipgloss.NewStyle().Foreground(as).Render(" — "+tr.Artist)
@@ -94,7 +104,7 @@ func (m model) queuePanel(w, h int) string {
 		gap := w - lipgloss.Width(left) - lipgloss.Width(dur) - 1
 		line := left + strings.Repeat(" ", max(1, gap)) + dur
 		if m.focus == focusQueue && i == m.selIdx {
-			line = lipgloss.NewStyle().Background(selBg).Render(pad(line, w))
+			line = selectedRow(prefix+tr.Title+" — "+tr.Artist+" "+fmtTime(tr.Duration), w)
 		}
 		b.WriteString(pad(line, w) + "\n")
 	}
@@ -154,7 +164,7 @@ func (m model) renderRecentPanel(w, h int, gridLayout recentGridLayout) string {
 		}
 		tr := m.recent[i]
 		cover := placeholderTile(artCols, artRows)
-		if img := m.tileArt[tr.ID]; img != nil {
+		if img := m.tileArt[tr.ID]; img != nil && configBool(m.cfg, "artwork.enabled", true) {
 			cover = renderArtwork(img, artCols, artRows)
 		}
 		for r := 0; r < artRows; r++ {
@@ -165,6 +175,9 @@ func (m model) renderRecentPanel(w, h int, gridLayout recentGridLayout) string {
 			grid[r] += pad(line, tileW)
 		}
 		ts, as, mark := lipgloss.NewStyle().Foreground(fgDim), faint, " "
+		if i == m.recentSel {
+			mark = "▸"
+		}
 		if m.focus == focusRecent && i == m.recentSel {
 			ts = lipgloss.NewStyle().Foreground(accentHi).Bold(true)
 			as = lipgloss.NewStyle().Foreground(fgDim)
@@ -173,8 +186,7 @@ func (m model) renderRecentPanel(w, h int, gridLayout recentGridLayout) string {
 		title := pad(ts.Render(mark+tr.Title), tileW)
 		artist := pad(as.Render(" "+tr.Artist), tileW)
 		if m.focus == focusRecent && i == m.recentSel {
-			sel := lipgloss.NewStyle().Background(selBg)
-			title, artist = sel.Render(title), sel.Render(artist)
+			title, artist = selectedRow(mark+tr.Title, tileW), selectedRow(" "+tr.Artist, tileW)
 		}
 		grid[artRows] += title
 		grid[artRows+1] += artist
@@ -532,6 +544,9 @@ func (m model) transportPanel(w int) string {
 }
 
 func (m model) renderTransportPanel(w, barW int) string {
+	if w < 68 {
+		return m.compactTransport(w, barW)
+	}
 	icon := "⏸"
 	if !m.st.Playing {
 		icon = "▶"
@@ -551,7 +566,11 @@ func (m model) renderTransportPanel(w, barW int) string {
 	if m.note != "" {
 		hints = m.note + " "
 	}
-	l1 := pink.Render(" ▀▀ ") +
+	mark := " ▀▀ "
+	if m.focus == focusPlayer {
+		mark = " ▸  "
+	}
+	l1 := pink.Render(mark) +
 		lipgloss.NewStyle().Foreground(fgBright).Bold(true).Render(title) +
 		faint.Render(" — "+artist)
 	if album := m.st.Now.Album; album != "" {
@@ -621,7 +640,7 @@ func (m model) progressBar(barW, filled int) string {
 }
 
 func (m model) bootView() string {
-	logo := lipgloss.NewStyle().Foreground(accentHi).Bold(true).Render("amtui")
+	logo := lipgloss.NewStyle().Foreground(accentHi).Bold(true).Render("PISKIN MUSIC")
 	sub := lipgloss.NewStyle().Foreground(fgFaint).Render("apple music in your terminal")
 	var line string
 	if m.phase == phaseFail {
@@ -640,48 +659,57 @@ func (m model) bootView() string {
 }
 
 func (m model) View() string {
+	if m.w <= 0 || m.h <= 0 {
+		return ""
+	}
 	lay := m.layout()
-	if !lay.visible {
-		return "\n  terminal too small — need at least 70×22\n"
+	var frame string
+	switch {
+	case m.helpOpen:
+		frame = m.helpView()
+	case m.acctOpen:
+		frame = m.accountView()
+	case m.searchOpen:
+		frame = m.searchView()
+	case m.phase != phaseReady:
+		frame = m.bootView()
+	case !lay.visible:
+		frame = "PISKIN MUSIC\n" + m.st.Now.Title + "\nterminal too small · need 40×12\nspace pause · ? help · q quit"
+	default:
+		var left string
+		if lay.queueBody.h > 0 {
+			title := m.queueTitle()
+			if m.queueOpen {
+				title += " · c / esc close"
+			}
+			left = panel(title, m.queuePanel(lay.qw, lay.qh), lay.qw, lay.qh, m.focus == focusQueue, m.pulsedAccent())
+			if lay.recH > 0 {
+				left = lipgloss.JoinVertical(lipgloss.Left, left, panel(m.recentTitle(), m.renderRecentPanel(lay.qw, lay.recH-2, lay.recentGrid), lay.qw, lay.recH-2, m.focus == focusRecent, m.pulsedAccent()))
+			}
+		}
+		var main string
+		if lay.main.w > 0 {
+			w, h := lay.main.w-2, lay.main.h-2
+			title, body := "", ""
+			switch {
+			case m.eqOpen:
+				title, body = eqTitle(m.eqGains, m.eqSel), m.eqBody(w, h, lay)
+			case m.screen == screenLibrary:
+				title, body = "LIBRARY · [ / ] category", m.libraryPanel(w, h)
+			case m.screen == screenFocus:
+				title, body = "NOW PLAYING", m.focusPanel(w, h)
+			case m.screen == screenVisualizer:
+				title, body = m.visualizerTitle()+" · "+vizModeName(m.vizMode), m.vizPanel(w, h)
+			case m.screen == screenLyrics:
+				title, body = "LYRICS", m.lyricsPanel(w, h)
+			}
+			main = panel(title, body, w, h, m.focus == focusLibrary, m.pulsedAccent())
+		}
+		top := lipgloss.JoinHorizontal(lipgloss.Top, left, main)
+		transport := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(map[bool]lipgloss.Color{true: m.pulsedAccent(), false: borderDim}[m.focus == focusPlayer]).Width(lay.transport.w).Render(m.renderTransportPanel(lay.transport.w, lay.progress.w))
+		frame = m.header(lay) + "\n" + top + "\n" + transport
 	}
-	if m.phase != phaseReady {
-		return m.bootView()
-	}
-	if m.helpOpen {
-		return m.helpView()
-	}
-	if m.acctOpen {
-		return m.accountView()
-	}
-	if m.searchOpen {
-		return m.searchView()
-	}
-	left := panel(m.queueTitle(), m.queuePanel(lay.qw, lay.qh), lay.qw, lay.qh,
-		m.focus == focusQueue, m.pulsedAccent())
-	if lay.recH > 0 {
-		left = lipgloss.JoinVertical(lipgloss.Left, left,
-			panel(m.recentTitle(), m.renderRecentPanel(lay.qw, lay.recH-2, lay.recentGrid), lay.qw, lay.recH-2,
-				m.focus == focusRecent, m.pulsedAccent()))
-	}
-	var vizTitle, vizBody string
-	if m.eqOpen {
-		vizTitle = eqTitle(m.eqGains, m.eqSel)
-		vizBody = eqPanel(lay.vw, lay.vh-2, m.eqGains, m.eqSel)
-	} else {
-		vizTitle, vizBody = m.visualizerTitle(), m.vizPanel(lay.vw, lay.vh-2)
-	}
-	viz := panel(vizTitle, vizBody, lay.vw, lay.vh-2, false, m.pulsedAccent())
-	lyr := panel("LYRICS", m.lyricsPanel(lay.vw, lay.lh), lay.vw, lay.lh, false, m.pulsedAccent())
-	right := lipgloss.JoinVertical(lipgloss.Left, viz, lyr)
-	top := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
-
-	tw := lay.transport.w
-	transport := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(map[bool]lipgloss.Color{true: m.pulsedAccent(), false: borderDim}[m.focus == focusPlayer]).
-		Width(tw).Render(m.renderTransportPanel(tw, lay.progress.w))
-
-	return lipgloss.JoinVertical(lipgloss.Left, top, transport)
+	return lipgloss.NewStyle().Background(background).Foreground(fgBright).Render(fitBlock(frame, m.w, m.h))
 }
 
 func (m model) visualizerTitle() string {

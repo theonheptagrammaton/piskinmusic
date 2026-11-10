@@ -1,4 +1,10 @@
-# applemusic-tui — Apple Music in your terminal, on macOS **and** Linux
+# PISKIN MUSIC — Apple Music in your terminal
+
+PISKIN MUSIC adds a monochrome shell and four screens to the MIT-licensed
+[applemusic-tui](https://github.com/k1y0miiii/applemusic-tui) by k1y0miiii.
+The executable remains `amtui`; existing aliases, config and authentication
+profiles, and MPRIS IDs are preserved. The screenshots below show the upstream
+interface and have not yet been refreshed for the four-screen shell.
 
 **English** · [Русский](README.ru.md)
 
@@ -190,13 +196,18 @@ required.
 | --- | --- |
 | `Space` | Play / pause |
 | `n` / `p` | Next / previous track |
-| `Tab` | Cycle focus: queue → recently played → transport |
-| `j` `k` / `↓` `↑` | Queue: move selection · Recent: move a grid row · Transport: volume down / up |
-| `Enter` | Play the selected queue track or recently-played cover |
+| `1` / `2` / `3` / `4` | Library / Focus / Visualizer / Lyrics |
+| `Tab` / `Shift+Tab` | Next / previous visible focus region |
+| `c` / `Esc` | Open queue / close queue |
+| `[` / `]` | Library: previous / next category (albums, playlists, recent) |
+| `j` `k` / `↓` `↑` | Lists: move selection · Recent grid: move a row · Transport: volume down / up |
+| `Enter` | Play the selected library item, queue track or recent cover |
 | `←` / `→` | Recent: previous / next cover · Transport: seek −5 s / +5 s |
 | `s` | Toggle shuffle |
 | `r` | Cycle repeat mode |
-| `?` | Show every key |
+| `?` | Show keys; arrows/page keys change help page, other keys close |
+| `Q` | Open / close EQ; arrows change band/gain, `P` presets, `0` flat |
+| `a` | Account; `Enter` signs out, other keys close |
 | `v` | Cycle visualizer: bars → torus → sphere |
 | `t` | Cycle color theme |
 | `R` | Reload the web player if it wedges |
@@ -205,8 +216,19 @@ required.
 
 ### Mouse
 
-Click a queue row or a cover to play it, click the progress bar to seek, and
-scroll the wheel over the queue or the cover grid to move the selection.
+Click screen labels to navigate and toolbar labels to open search, queue, EQ,
+account or help. Click a library item, queue row, recent cover or search result
+to play it; scroll over its list to move selection. Search has category and
+queue/end/next buttons. Click the play icon to pause/resume, the progress bar to
+seek, or wide transport shuffle/repeat labels to toggle them. The transport wheel
+changes volume. EQ has clickable gain/preset/reset/close controls; click a band
+to select it. General help commands and their individual keys are clickable.
+
+At 40×12 through narrow sizes the main region takes priority, with `c` providing
+a full queue. Library also shows a queue from 70 columns; other screens gain a
+queue support column at 120×32. Artwork is omitted when space is limited. Below
+40×12 a minimal now-playing/resize view retains keyboard pause, help and quit.
+Screen changes preserve playback, selections, search results and per-screen focus.
 
 ### Search
 
@@ -287,15 +309,23 @@ end does not count as a play.
 
 ## Themes
 
-Six built-in themes: `apple` (default), `catppuccin`, `gruvbox`, `nord`, `mono`
-and `auto`. Press `t` to cycle them; the choice is remembered in
+`piskin` is the fixed black/white/grayscale default, including inverse selection
+and an explicit black background. Artwork retains its original colors through
+the portable half-block renderer. All six original palettes remain explicit
+legacy choices: `apple`, `catppuccin`, `gruvbox`, `nord`, `mono`, and `auto`.
+Saved palette names and explicit config choices are honored. An existing color-only
+config without a palette name keeps the legacy `apple` base; explicitly select
+`piskin` to use the fixed monochrome shell. Press `t` to cycle;
+the choice is remembered in
 `~/.config/amtui/theme`.
 
 `auto` takes its accent from the dominant color of the current track's album
 art. Only the accent changes — background and text stay neutral, so no cover can
 make the interface unreadable.
 
-To pick a theme up front or override individual colors, copy
+The `piskin` palette ignores individual color overrides to keep its standard
+appearance monochrome. To customize colors, select a named legacy palette.
+To pick a theme up front or override legacy colors, copy
 [`docs/config.example.toml`](docs/config.example.toml) to
 `~/.config/amtui/config.toml`. The same file switches the peak markers, the bass
 pulse, the waveform progress bar and the album art on or off.

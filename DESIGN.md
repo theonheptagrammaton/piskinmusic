@@ -8,7 +8,8 @@ in [PLAN.md](PLAN.md), and acceptance evidence in [TESTING.md](TESTING.md).
 A native terminal music instrument: fast navigation, readable metadata, precise
 focus, generous empty space where dimensions permit. Use terminal cells and
 normal list interactions rather than web-style cards, decorative dashboards or
-large ASCII branding. This specification is proposed; no UI changes have shipped.
+large ASCII branding. The monochrome shell and four-screen phase is implemented; PCM waveform,
+explicit demo policy and resource optimization remain later phases.
 
 The shell uses black and white. Neutral grayscale may express subdued text,
 separators and depth, with no chromatic accents. Album artwork keeps its original

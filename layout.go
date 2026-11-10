@@ -19,9 +19,34 @@ func (r rect) contains(x, y int) bool {
 	return x >= r.x && y >= r.y && x < r.x+r.w && y < r.y+r.h
 }
 
+func (r rect) clipped(w, h int) rect {
+	x, y := max(0, r.x), max(0, r.y)
+	right, bottom := min(max(0, w), r.x+r.w), min(max(0, h), r.y+r.h)
+	if right <= x || bottom <= y {
+		return rect{}
+	}
+	return rect{x, y, right - x, bottom - y}
+}
+
+func clipTargets(targets []keyTarget, w, h int) []keyTarget {
+	out := targets[:0]
+	for _, a := range targets {
+		a.rect = a.rect.clipped(w, h)
+		if a.w > 0 && a.h > 0 {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
 type layout struct {
-	visible                                    bool
-	queueBody, recentBody, transport, progress rect
+	visible                                          bool
+	queueBody, recentBody, transport, progress, play rect
+	main, libraryBody                                rect
+	nav                                              [4]rect
+	actions                                          []keyTarget
+	libraryTabs                                      [3]rect
+	queueY                                           int
 
 	recentGrid  recentGridLayout
 	recentTiles [recentCols]rect
@@ -31,55 +56,102 @@ type layout struct {
 	rightW int
 	qw, qh int // queue panel content size
 	recH   int // full height of the recently-played box, 0 when hidden
-	vw, vh int // visualizer panel
-	lh     int // lyrics panel content height
 }
 
 func (m model) layout() layout {
-	l := layout{visible: m.w >= 70 && m.h >= 22, topH: m.h - 4}
+	l := layout{visible: m.w >= 40 && m.h >= 12, topH: m.h - 4, queueY: 2}
 	if !l.visible {
 		return l
 	}
-	l.leftW = m.w * 42 / 100
-	l.rightW = m.w - l.leftW
-	l.qw = l.leftW - 2
-	if len(m.recent) > 0 {
-		l.recH = recentPanelHeight(l.topH)
+	x := 0
+	for i := range screenNames {
+		label := m.screenLabel(i)
+		l.nav[i] = rect{x, 1, lipgloss.Width(label), 1}
+		x += lipgloss.Width(label) + 1
 	}
-	l.qh = l.topH - 2 - l.recH
-	l.vh = l.topH * 62 / 100
-	l.vw = l.rightW - 2
-	l.lh = l.topH - l.vh - 2
-	l.queueBody = rect{1, l.queueTop(), l.qw, l.queueRows()}
-	l.recentGrid = recentGrid(l.qw, l.recH-3)
-	if l.recH > 0 {
-		l.recentBody = rect{1, l.recentTop(), l.qw, l.topH - 1 - l.recentTop()}
-		g := l.recentGrid
-		for c := range l.recentTiles {
-			l.recentTiles[c] = rect{1 + g.gap*(c+1) + g.artCols*c, l.recentTop(), g.artCols, g.artRows + 2}
+	labels := []string{"/ Search", "c Queue", "Q EQ", "a Account", "? Help"}
+	if m.w < 70 {
+		labels = []string{"/Find", "cQ", "QEQ", "aAcct", "?Help"}
+	}
+	keys := []string{"/", "c", "Q", "a", "?"}
+	x = 13
+	for i, label := range labels {
+		l.actions = append(l.actions, keyTarget{rect{x, 0, lipgloss.Width(label), 1}, keys[i], label})
+		x += lipgloss.Width(label) + 1
+	}
+	bodyH := m.h - 6
+	l.main = rect{0, 2, m.w, bodyH}
+	showQueue := m.queueOpen || (m.screen == screenLibrary && m.w >= 70) || (m.w >= 120 && m.h >= 32)
+	if m.eqOpen {
+		showQueue = false
+	}
+	if showQueue {
+		l.leftW = m.w * 42 / 100
+		if m.screen != screenLibrary {
+			l.leftW = min(42, m.w/3)
+		}
+		if m.queueOpen {
+			l.leftW = m.w
+		}
+		l.rightW = m.w - l.leftW
+		l.qw = l.leftW - 2
+		if m.screen == screenLibrary && !m.queueOpen && len(m.recent) > 0 {
+			l.recH = recentPanelHeight(bodyH)
+		}
+		l.qh = bodyH - 2 - l.recH
+		l.queueBody = rect{1, l.queueTop(), l.qw, l.queueRows()}
+		l.recentGrid = recentGrid(l.qw, l.recH-3)
+		if l.recH > 0 && l.recentGrid.artCols > 0 {
+			g := l.recentGrid
+			l.recentBody = rect{1, l.recentTop(), l.qw, l.recH - 3}
+			for c := range l.recentTiles {
+				l.recentTiles[c] = rect{1 + g.gap*(c+1) + g.artCols*c, l.recentTop(), g.artCols, g.artRows + 2}
+			}
+		} else if l.recH > 0 {
+			l.recH = 0
+			l.qh = bodyH - 2
+			l.queueBody.h = l.queueRows()
+		}
+		l.main = rect{l.leftW, 2, l.rightW, bodyH}
+	}
+	if !m.queueOpen && !m.eqOpen && m.screen == screenLibrary {
+		l.libraryBody = rect{l.main.x + 1, l.main.y + 3, l.main.w - 2, l.main.h - 4}
+		x = l.main.x + 1
+		for i, name := range libraryNames {
+			l.libraryTabs[i] = rect{x, l.main.y + 2, lipgloss.Width(name) + 2, 1}
+			x += lipgloss.Width(name) + 3
 		}
 	}
 	l.transport = rect{1, l.topH + 1, m.w - 2, 2}
 	barX, barW := m.progressGeometry(l.transport.w)
 	l.progress = rect{l.transport.x + barX, l.transport.y + 1, barW, 1}
+	playX := 4
+	if l.transport.w < 68 {
+		playX = 3
+	}
+	l.play = rect{l.transport.x + playX, l.transport.y + 1, 1, 1}
 	return l
 }
 
 // queueRows is how many tracks the queue panel shows at once, and queueTop the
 // screen row the first of them is drawn on. panel() spends one row on the
 // border and one on its title before the body starts.
-func (l layout) queueRows() int { return l.qh - 1 }
-func (l layout) queueTop() int  { return 2 }
+func (l layout) queueRows() int { return max(0, l.qh-1) }
+func (l layout) queueTop() int  { return l.queueY + 2 }
 
 // recentTop is the screen row the cover grid starts on, directly below the
 // queue box.
-func (l layout) recentTop() int { return l.qh + 2 + 2 }
+func (l layout) recentTop() int { return l.queueY + l.qh + 2 + 2 }
 
 // progressGeometry returns the column the progress bar starts at within the
 // transport's content, and its width. transportPanel lays the second line out
 // as " ▄▄ " then the play icon then the elapsed time, which is six cells plus
 // the clock before the bar begins.
 func (m model) progressGeometry(w int) (x, width int) {
+	if w < 68 {
+		x = 4 + lipgloss.Width(fmtTime(m.st.Pos)+" ")
+		return x, max(1, w-x-lipgloss.Width(" "+fmtTime(m.st.Dur)))
+	}
 	times := fmtTime(m.st.Pos) + " "
 	timee := " " + fmtTime(m.st.Dur)
 	shuf, rep := "off", [3]string{"off", "one", "all"}[min(m.st.Repeat, 2)]

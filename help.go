@@ -1,19 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
-
-// The transport hint line ran to 96 cells against a 70-column minimum terminal,
-// so its tail was simply cut off — and every key added to the app made that
-// worse. The inline hints now carry only what gets a beginner moving, and this
-// overlay carries the full set.
-//
-// Entries are terse on purpose. Spelled out, the list needs 34 rows in one
-// column, which overflows the 22-row minimum terminal, and two columns of prose
-// do not fit across 70 either. A key reference is scanned, not read.
 
 // shortHints is the last thing dropped: whatever else does not fit, the user
 // still needs to be told where the full list is.
@@ -50,17 +43,20 @@ type helpSection struct {
 }
 
 var helpSections = []helpSection{
+	{"SCREENS", []helpEntry{
+		{"1 / 2", "Library / Focus"}, {"3 / 4", "Visualizer / Lyrics"}, {"c / esc", "queue / close"}, {"[ / ]", "library category"},
+	}},
 	{"PLAYBACK", []helpEntry{
 		{"space", "play / pause"},
 		{"n / p", "next / prev track"},
 		{"← →", "seek −5 s / +5 s"},
-		{"↑ ↓", "volume down / up"},
+		{"↑ ↓", "volume up / down"},
 		{"s", "shuffle on / off"},
 		{"r", "cycle repeat"},
 	}},
 	{"BROWSING", []helpEntry{
 		{"/", "search"},
-		{"tab", "cycle focus"},
+		{"tab/S-tab", "focus next / prev"},
 		{"j k / ↑ ↓", "move selection"},
 		{"↵", "play selection"},
 		{"← →", "prev / next cover"},
@@ -74,6 +70,9 @@ var helpSections = []helpSection{
 		{"v", "bars/torus/sphere"},
 		{"t", "cycle theme"},
 		{"Q", "equalizer"},
+		{"P / 0", "EQ preset / reset"},
+		{"h l / ← →", "EQ select band"},
+		{"j k / ↓ ↑", "EQ gain − / +"},
 	}},
 	{"OTHER", []helpEntry{
 		{"?", "this help"},
@@ -83,88 +82,102 @@ var helpSections = []helpSection{
 	}},
 }
 
-// helpColumns splits the sections into two columns of roughly equal height. Two
-// columns are not a nicety here: one column is taller than the shortest
-// terminal the app agrees to draw in.
-func helpColumns() ([]helpSection, []helpSection) {
-	total := 0
-	for _, s := range helpSections {
-		total += len(s.entries) + 2
-	}
-	running, split := 0, len(helpSections)
-	for i, s := range helpSections {
-		if running >= total/2 {
-			split = i
-			break
-		}
-		running += len(s.entries) + 2
-	}
-	return helpSections[:split], helpSections[split:]
-}
+// Help is also the mouse command menu. Pages retain every action at 40×12.
+// Navigation keys page it; other keys keep the original dismiss-only behavior.
+type helpLine struct{ text, key, section string }
 
-// helpWidths measures the content so the columns fit it exactly, rather than
-// carrying magic numbers that quietly start truncating when an entry is added.
-func helpWidths() (keys, action int) {
+func helpLines() []helpLine {
+	var out []helpLine
 	for _, s := range helpSections {
+		out = append(out, helpLine{text: s.title})
 		for _, e := range s.entries {
-			keys = max(keys, lipgloss.Width(e.keys))
-			action = max(action, lipgloss.Width(e.action))
+			out = append(out, helpLine{text: pad(e.keys, 10) + " " + e.action, key: e.keys, section: s.title})
 		}
 	}
-	return keys, action
+	return out
 }
-
-func renderHelpColumn(sections []helpSection, keyWidth, width int) []string {
-	pink := lipgloss.NewStyle().Foreground(accentHi)
-	dim := lipgloss.NewStyle().Foreground(fgDim)
-
-	var lines []string
-	for i, section := range sections {
-		if i > 0 {
-			lines = append(lines, pad("", width))
-		}
-		lines = append(lines, pad(" "+pink.Bold(true).Render(section.title), width))
-		for _, e := range section.entries {
-			key := pad(e.keys, keyWidth)
-			lines = append(lines, pad("  "+pink.Render(key)+"  "+dim.Render(e.action), width))
+func (m model) helpGeometry() (cols, rows, colW, pages int) {
+	cols = 1
+	if m.w >= 70 {
+		cols = 2
+	}
+	rows = max(1, m.h-4)
+	colW = max(1, (m.w-2)/cols)
+	pages = (len(helpLines()) + cols*rows - 1) / (cols * rows)
+	return
+}
+func (m model) helpTargets() []keyTarget {
+	cols, rows, colW, pages := m.helpGeometry()
+	page := min(m.helpPage, pages-1)
+	entries := helpLines()
+	var targets []keyTarget
+	for c := 0; c < cols; c++ {
+		for r := 0; r < rows; r++ {
+			i := page*rows*cols + c*rows + r
+			if i < len(entries) && entries[i].key != "" {
+				e := entries[i]
+				if e.section == "IN SEARCH" || e.section == "BROWSING" {
+					continue
+				}
+				tokens := helpKeyTokens(e.key)
+				x := 1 + c*colW
+				first := ""
+				for _, token := range tokens {
+					if token != "/" {
+						key := token
+						if e.section == "PLAYBACK" {
+							key = "player:" + key
+						}
+						if strings.Contains(e.text, " EQ ") {
+							key = "eq:" + key
+						}
+						if first == "" {
+							first = key
+						}
+						targets = append(targets, keyTarget{rect{x, 2 + r, lipgloss.Width(token), 1}, key, token})
+					}
+					x += lipgloss.Width(token) + 1
+				}
+				targets = append(targets, keyTarget{rect{1 + c*colW + 11, 2 + r, max(0, colW-11), 1}, first, e.text})
+			}
 		}
 	}
-	return lines
+	return clipTargets(targets, m.w, m.h)
 }
-
+func (m model) updateHelp(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	_, _, _, pages := m.helpGeometry()
+	switch msg.String() {
+	case "right", "down", "pgdown", "tab":
+		m.helpPage = (m.helpPage + 1) % pages
+	case "left", "up", "pgup", "shift+tab":
+		m.helpPage = (m.helpPage + pages - 1) % pages
+	default:
+		m.helpOpen = false
+	}
+	return m, nil
+}
 func (m model) helpView() string {
-	faint := lipgloss.NewStyle().Foreground(fgFaint)
-	pink := lipgloss.NewStyle().Foreground(accentHi)
-
-	keyWidth, actionWidth := helpWidths()
-	colWidth := 2 + keyWidth + 2 + actionWidth
-	// Never wider than half the screen; pad truncates rather than letting the
-	// box push past the edge.
-	colWidth = min(colWidth, max(12, (m.w-6)/2-1))
-
-	left, right := helpColumns()
-	leftLines := renderHelpColumn(left, keyWidth, colWidth)
-	rightLines := renderHelpColumn(right, keyWidth, colWidth)
-
-	var body []string
-	for i := 0; i < max(len(leftLines), len(rightLines)); i++ {
-		line := pad("", colWidth)
-		if i < len(leftLines) {
-			line = leftLines[i]
+	cols, rows, colW, pages := m.helpGeometry()
+	entries := helpLines()
+	page := min(m.helpPage, pages-1)
+	lines := []string{pad("PISKIN MUSIC · KEYS", m.w), pad("click action · arrows page · other key closes", m.w)}
+	for r := 0; r < rows; r++ {
+		line := " "
+		for c := 0; c < cols; c++ {
+			i := page*rows*cols + c*rows + r
+			text := ""
+			if i < len(entries) {
+				text = entries[i].text
+				if entries[i].key == "" {
+					text = lipgloss.NewStyle().Foreground(accentHi).Bold(true).Render(text)
+				} else {
+					text = lipgloss.NewStyle().Foreground(fgDim).Render(text)
+				}
+			}
+			line += pad(text, colW)
 		}
-		if i < len(rightLines) {
-			line += " " + rightLines[i]
-		} else {
-			line += " " + pad("", colWidth)
-		}
-		body = append(body, line)
+		lines = append(lines, pad(line, m.w))
 	}
-
-	iw := lipgloss.Width(body[0])
-	content := strings.Join(body, "\n") + "\n\n" + pad(faint.Render(" any key closes"), iw)
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).BorderForeground(accent).
-		Width(iw).Render(content)
-	title := pink.Bold(true).Render("KEYS")
-	return lipgloss.Place(m.w, m.h, lipgloss.Center, lipgloss.Center, title+"\n"+box)
+	lines = append(lines, pad(fmt.Sprintf("‹ prev    %d/%d    next ›   · click here to close", page+1, pages), m.w))
+	return strings.Join(lines, "\n")
 }

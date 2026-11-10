@@ -204,3 +204,240 @@ func TestLayoutMatchesTheRenderedFrame(t *testing.T) {
 		}
 	}
 }
+
+type screenPlayback struct{ commandPlayback }
+
+func (p *screenPlayback) Next() error                      { return p.call("next") }
+func (p *screenPlayback) Prev() error                      { return p.call("prev") }
+func (p *screenPlayback) ToggleShuffle() error             { return p.call("shuffle") }
+func (p *screenPlayback) CycleRepeat() error               { return p.call("repeat") }
+func (p *screenPlayback) SetVolume(v int) error            { return p.call(fmt.Sprintf("volume:%d", v)) }
+func (p *screenPlayback) SetEQ(g [10]int) error            { return p.call(fmt.Sprint("eq:", g)) }
+func (p *screenPlayback) QueueNext(kind, id string) error  { return p.call("next:" + kind + ":" + id) }
+func (p *screenPlayback) QueueLater(kind, id string) error { return p.call("later:" + kind + ":" + id) }
+func (p *screenPlayback) Account() (engine.Account, error) {
+	return engine.Account{}, p.call("account")
+}
+func (p *screenPlayback) SignOut() error { return p.call("sign-out") }
+
+func pressAt(x, y int) tea.MouseMsg {
+	return tea.MouseMsg{X: x, Y: y, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress}
+}
+
+func TestLibraryMousePlaysTheVisibleScrolledRow(t *testing.T) {
+	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
+	lipgloss.SetColorProfile(termenv.Ascii)
+	for _, size := range [][2]int{{40, 12}, {60, 20}, {80, 24}, {120, 32}, {180, 50}} {
+		m := recentModel()
+		m.w, m.h = size[0], size[1]
+		p := &screenPlayback{}
+		m.eng = p
+		for i := 0; i < 35; i++ {
+			m.library.Albums = append(m.library.Albums, engine.Track{ID: fmt.Sprint(i), Kind: "album", Title: fmt.Sprintf("Record%02d", i)})
+		}
+		m.librarySel[0] = 30
+		l := m.layout()
+		start := listWindow(30, 35, l.libraryBody.h)
+		rows := strings.Split(m.View(), "\n")
+		if !strings.Contains(rows[l.libraryBody.y], fmt.Sprintf("Record%02d", start)) {
+			t.Fatalf("%v library scroll geometry differs from frame", size)
+		}
+		next, cmd := m.Update(pressAt(l.libraryBody.x, l.libraryBody.y))
+		got := next.(model)
+		if got.librarySel[0] != start || cmd == nil {
+			t.Fatalf("%v click did not select drawn row", size)
+		}
+		cmd()
+		if len(p.calls) != 1 || p.calls[0] != fmt.Sprintf("play:album:%d", start) {
+			t.Fatalf("wrong record: %v", p.calls)
+		}
+	}
+}
+
+func TestSearchMouseScrollingPlayAndQueueActions(t *testing.T) {
+	t.Setenv("AMTUI_CONFIG_DIR", t.TempDir())
+	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
+	lipgloss.SetColorProfile(termenv.Ascii)
+	for _, size := range [][2]int{{40, 12}, {80, 24}, {180, 50}} {
+		m := recentModel()
+		m.w, m.h, m.searchOpen, m.sTab, m.sSel = size[0], size[1], true, 1, 25
+		p := &screenPlayback{}
+		m.eng = p
+		for i := 0; i < 40; i++ {
+			m.sRes.Songs = append(m.sRes.Songs, engine.Track{ID: fmt.Sprint(i), Kind: "song", Title: fmt.Sprintf("Result%02d", i)})
+		}
+		body, tabs, actions := m.searchGeometry()
+		rows := strings.Split(m.View(), "\n")
+		start := listWindow(25, 40, body.h)
+		if !strings.Contains(rows[body.y], fmt.Sprintf("Result%02d", start)) {
+			t.Fatal("selected search page is not visible")
+		}
+		next, cmd := m.Update(pressAt(body.x, body.y))
+		if next.(model).sSel != start || cmd == nil {
+			t.Fatal("search click missed scrolled result")
+		}
+		cmd()
+		if p.calls[0] != fmt.Sprintf("play:song:%d", start) {
+			t.Fatal(p.calls)
+		}
+		for _, action := range actions[1:3] {
+			p.calls = nil
+			_, cmd = m.Update(pressAt(action.x, action.y))
+			if cmd == nil {
+				t.Fatal("queue action inaccessible")
+			}
+			cmd()
+			want := "later:song:25"
+			if action.key == "A" {
+				want = "next:song:25"
+			}
+			if len(p.calls) != 1 || p.calls[0] != want {
+				t.Fatalf("%s: %v", action.label, p.calls)
+			}
+		}
+		next, _ = m.Update(pressAt(tabs[2].x, tabs[2].y))
+		if next.(model).sTab != 2 || next.(model).sSel != 0 {
+			t.Fatal("search tab inaccessible")
+		}
+	}
+}
+
+func TestTransportEQAndAccountMouseUseKeyboardCommands(t *testing.T) {
+	t.Setenv("AMTUI_CONFIG_DIR", t.TempDir())
+	for _, size := range [][2]int{{40, 12}, {80, 24}, {120, 32}} {
+		m := recentModel()
+		m.w, m.h, m.screen, m.focus = size[0], size[1], screenFocus, focusPlayer
+		p := &screenPlayback{}
+		m.eng = p
+		l := m.layout()
+		next, cmd := m.Update(pressAt(l.play.x, l.play.y))
+		if cmd == nil {
+			t.Fatal("play icon is inert")
+		}
+		cmd()
+		if next.(model).st.Playing == m.st.Playing || p.calls[0] != "play-pause" {
+			t.Fatal("play icon differs from space")
+		}
+		_, cmd = m.Update(tea.MouseMsg{X: l.transport.x, Y: l.transport.y, Button: tea.MouseButtonWheelUp, Action: tea.MouseActionPress})
+		cmd()
+		if p.calls[1] != "volume:70" {
+			t.Fatal("transport wheel did not change volume")
+		}
+		for _, a := range m.transportActions(l) {
+			_, cmd = m.Update(pressAt(a.x, a.y))
+			if cmd == nil {
+				t.Fatal("transport target inert")
+			}
+			cmd()
+		}
+		m.eqOpen = true
+		l = m.layout()
+		rows := strings.Split(m.View(), "\n")
+		for _, a := range m.eqActions(l) {
+			if !strings.Contains(rows[a.y], a.label) {
+				t.Fatalf("EQ action %q not drawn at hit row", a.label)
+			}
+			next, cmd = m.Update(pressAt(a.x, a.y))
+			if a.key == "Q" {
+				if next.(model).eqOpen {
+					t.Fatal("EQ close inert")
+				}
+				continue
+			}
+			if cmd == nil {
+				t.Fatal("EQ action inert")
+			}
+			cmd()
+		}
+		// A screen-label click cannot reach the content behind EQ.
+		next, cmd = m.Update(pressAt(l.nav[3].x, l.nav[3].y))
+		if next.(model).screen != m.screen || cmd != nil {
+			t.Fatal("EQ allowed click-through")
+		}
+		m.eqOpen, m.acctOpen = false, true
+		action := m.accountAction()
+		if !strings.Contains(strings.Split(m.View(), "\n")[action.y], "Sign out") {
+			t.Fatal("sign-out target not drawn")
+		}
+		_, cmd = m.Update(pressAt(action.x, action.y))
+		if cmd == nil {
+			t.Fatal("account sign-out inaccessible")
+		}
+		cmd()
+		if p.calls[len(p.calls)-1] != "sign-out" {
+			t.Fatal(p.calls)
+		}
+	}
+}
+
+func TestToolbarActionsReachOverlaysFromEveryScreen(t *testing.T) {
+	for _, size := range [][2]int{{40, 12}, {80, 24}, {120, 32}} {
+		for s := screenLibrary; s <= screenLyrics; s++ {
+			m := recentModel()
+			m.screen, m.w, m.h = s, size[0], size[1]
+			for _, a := range m.layout().actions {
+				next, _ := m.Update(pressAt(a.x, a.y))
+				got := next.(model)
+				switch a.key {
+				case "/":
+					if !got.searchOpen {
+						t.Fatal("search inaccessible")
+					}
+				case "c":
+					if !got.queueOpen {
+						t.Fatal("queue inaccessible")
+					}
+				case "Q":
+					if !got.eqOpen {
+						t.Fatal("EQ inaccessible")
+					}
+				case "a":
+					if !got.acctOpen {
+						t.Fatal("account inaccessible")
+					}
+				case "?":
+					if !got.helpOpen {
+						t.Fatal("help inaccessible")
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestNoOverlayAcceptsOffscreenMouseInput(t *testing.T) {
+	for _, size := range [][2]int{{0, 0}, {1, 1}, {20, 6}, {39, 11}, {40, 12}} {
+		for _, overlay := range []string{"search", "help", "account", "EQ", "queue"} {
+			m := recentModel()
+			m.w, m.h = size[0], size[1]
+			switch overlay {
+			case "search":
+				m.searchOpen = true
+			case "help":
+				m.helpOpen = true
+			case "account":
+				m.acctOpen = true
+			case "EQ":
+				m.eqOpen = true
+			case "queue":
+				m.toggleQueue()
+			}
+			for _, point := range [][2]int{{-1, 0}, {0, -1}, {m.w, 0}, {0, m.h}, {1000, 1000}} {
+				next, cmd := m.Update(pressAt(point[0], point[1]))
+				got := next.(model)
+				if cmd != nil || got.helpOpen != m.helpOpen || got.acctOpen != m.acctOpen || got.searchOpen != m.searchOpen || got.eqOpen != m.eqOpen || got.queueOpen != m.queueOpen {
+					t.Fatalf("%v %s accepted offscreen %v", size, overlay, point)
+				}
+			}
+			_, tabs, actions := m.searchGeometry()
+			targets := append(tabs, actions...)
+			targets = append(targets, m.helpTargets()...)
+			targets = append(targets, keyTarget{rect: m.accountAction()})
+			for _, a := range targets {
+				if a.w > 0 && a.h > 0 && (a.x < 0 || a.y < 0 || a.x+a.w > m.w || a.y+a.h > m.h) {
+					t.Fatalf("%v offscreen overlay target %+v", size, a)
+				}
+			}
+		}
+	}
+}

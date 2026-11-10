@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // updateAccount runs while the account overlay is open. Unlike help, this
@@ -46,37 +45,13 @@ func (m model) accountLines() []string {
 	return []string{who, where}
 }
 
+func (m model) accountAction() rect { return (rect{1, 5, 10, 1}).clipped(m.w, m.h) }
 func (m model) accountView() string {
-	pink := lipgloss.NewStyle().Foreground(accentHi)
-	dim := lipgloss.NewStyle().Foreground(fgDim)
-	faint := lipgloss.NewStyle().Foreground(fgFaint)
-
 	lines := m.accountLines()
-	action := " ↵  sign out"
+	action := " ↵ Sign out"
 	if m.acctBusy {
-		action = " ↵  signing out…"
+		action = " Signing out…"
 	}
-	hint := " enter signs out · any other key closes "
-
-	// The box fits its own content; a fixed width would start truncating the
-	// first time someone has a long profile name.
-	iw := lipgloss.Width(hint)
-	for _, s := range []string{" " + lines[0], " " + lines[1], action} {
-		iw = max(iw, lipgloss.Width(s))
-	}
-	iw = min(iw, max(20, m.w-6))
-
-	body := []string{
-		pad(" "+pink.Bold(true).Render(lines[0]), iw),
-		pad(" "+dim.Render(lines[1]), iw),
-		pad("", iw),
-		pad(pink.Render(action), iw),
-		pad("", iw),
-		pad(faint.Render(hint), iw),
-	}
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).BorderForeground(accent).
-		Width(iw).Render(strings.Join(body, "\n"))
-	title := pink.Bold(true).Render("ACCOUNT")
-	return lipgloss.Place(m.w, m.h, lipgloss.Center, lipgloss.Center, title+"\n"+box)
+	body := []string{"PISKIN MUSIC · ACCOUNT", "", lines[0], lines[1], "", action, "", "Enter signs out · other key closes"}
+	return strings.Join(body, "\n")
 }

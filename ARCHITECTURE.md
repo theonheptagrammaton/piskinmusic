@@ -31,7 +31,7 @@ Root commands also fetch artwork, LRCLIB lyrics and opt-in Last.fm data.
 
 | Area | Files/packages and behavior |
 | --- | --- |
-| App state, commands, layout, views | `main.go` wires startup; `app_state.go` owns the model, messages and Init/Update; `commands.go` wraps effects and timers; `layout.go` owns shared geometry; `components.go` renders the dashboard and its components. |
+| App state, commands, layout, views | `main.go` wires startup; `app_state.go` owns the model, messages and Init/Update; `commands.go` wraps effects and timers; `layout.go` owns shared geometry; `components.go` renders shared playback components and dispatches screens; `screens.go` renders primary screen content and owns screen/focus transitions. |
 | Support views and input | `mouse.go`, `help.go`, `overlay.go`, `account.go`, `eq.go`, `orb.go`. |
 | Theme/config/art | `theme.go` holds palettes, mutable global tokens, simple TOML-subset parsing and persistence; `artwork.go` downloads/caches and renders images as colored half blocks. |
 | Playback | `engine.Engine` serializes CDP access with a mutex; `State` exposes transport/queue/auth/EQ/error snapshots; JS in `engine/musickit.go` uses the page's MusicKit instance and playback recovery logic. |
@@ -145,3 +145,29 @@ Reuse latest-frame publication instead of queueing redraws. Keep memory bounded,
 cache artwork by identity/size, avoid redecoding per tick, and skip inactive
 screen rendering. Measure Chrome and Go resource use separately. No renderer
 may stall audio reads or the UI on browser/network operations.
+
+## Monochrome screens — phase 3
+
+The root model retains a selected primary screen, per-screen focus, library
+snapshot/category selections and queue overlay state. Library snapshots remain
+separate from catalog search results. Screen selection schedules no browser or
+audio work. Rendering dispatches only the active primary content. The queue is
+available as a full main-area overlay everywhere and as a support column when
+space permits; EQ uses the main area while search/account/help take precedence.
+
+`layout.go` owns navigation, toolbar, list, cover and progress rectangles. Search,
+help, account and EQ each share their action geometry with pointer handling.
+Mouse commands reuse keyboard command paths. ANSI/Unicode clipping bounds all
+frames to the terminal, while lists scroll their selected row into view. Help
+paginates in narrow/short terminals and exposes general commands to pointer
+users. Screen shortcuts never consume search text or pass through blocking layers.
+
+Theme tokens, including background and inverse selection text, live in theme.go.
+The new `piskin` default is fixed monochrome; original named palettes and their
+color overrides remain explicit legacy choices. Color-only existing configs
+without a named/saved palette retain their original apple base. Resolving a theme writes no
+configuration. Only an explicit theme/EQ/viz action persists that preference.
+Authentication paths, module/executable aliases, engine APIs, MPRIS IDs, audio
+service and visualization IDs are unchanged. The existing half-block artwork
+renderer retains source colors, including inside the black shell. No terminal
+image protocol or new image dependency was added.

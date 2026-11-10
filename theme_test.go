@@ -5,10 +5,12 @@ import (
 	"image/color"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 func TestApplyThemeSwitchesPalette(t *testing.T) {
@@ -250,5 +252,125 @@ func TestAccentTrioIsReadable(t *testing.T) {
 	_, _, vlo := hexToHSV(string(lo))
 	if vlo >= v {
 		t.Errorf("accentLo value %.2f is not darker than accent %.2f", vlo, v)
+	}
+}
+
+func TestPiskinDefaultIsFixedMonochromeAndLegacyChoicesSurvive(t *testing.T) {
+	defer applyTheme(themes[0])
+	dir := t.TempDir()
+	t.Setenv("AMTUI_CONFIG_DIR", dir)
+	config := []byte("[theme]\nname = \"nord\" # retain comments\naccent = \"#123456\"\n")
+	path := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(path, config, 0600); err != nil {
+		t.Fatal(err)
+	}
+	saveThemeName("auto")
+	for _, name := range []string{"apple", "catppuccin", "gruvbox", "nord", "mono", "auto"} {
+		if got := themeFromConfig(nil, name); got.name != name {
+			t.Fatalf("saved %q became %q", name, got.name)
+		}
+	}
+	defaultTheme := themeFromConfig(nil, "")
+	if defaultTheme.name != "piskin" {
+		t.Fatalf("default %q", defaultTheme.name)
+	}
+	applyTheme(themeFromConfig(map[string]string{"theme.name": "piskin", "theme.accent": "#FF0000"}, "auto"))
+	for _, c := range []lipgloss.Color{accent, accentHi, accentLo, fgBright, fgDim, fgFaint, borderDim, selBg, background, selectedText} {
+		_, sat, _ := hexToHSV(string(c))
+		if sat != 0 {
+			t.Fatalf("chromatic default token %s", c)
+		}
+	}
+	if background != "#000000" || selectedText != "#000000" || selBg != "#FFFFFF" {
+		t.Fatal("default background/selection roles incorrect")
+	}
+	got := themeFromConfig(loadConfig(), loadThemeName())
+	if got.name != "nord" || got.accent != "#123456" {
+		t.Fatal("legacy config overrides were lost")
+	}
+	b, err := os.ReadFile(path)
+	if err != nil || string(b) != string(config) || loadThemeName() != "auto" {
+		t.Fatal("theme resolution rewrote saved state")
+	}
+}
+
+func TestDefaultFramesHaveNoChromaticShellColors(t *testing.T) {
+	defer applyTheme(themes[0])
+	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	applyTheme(themes[0])
+	colors := regexp.MustCompile(`(?:38|48);2;(\d+);(\d+);(\d+)`)
+	for s := screenLibrary; s <= screenLyrics; s++ {
+		for _, overlay := range []string{"", "search", "help", "account", "EQ", "queue", "boot", "fail"} {
+			m := recentModel()
+			m.screen, m.themeName = s, "piskin"
+			m.vizBands, m.vizPeaks = simulatedBands(1.2, true), simulatedBands(1.1, true)
+			switch overlay {
+			case "search":
+				m.searchOpen = true
+			case "help":
+				m.helpOpen = true
+			case "account":
+				m.acctOpen = true
+			case "EQ":
+				m.eqOpen = true
+			case "queue":
+				m.toggleQueue()
+			case "boot":
+				m.phase = phaseBoot
+			case "fail":
+				m.phase, m.status = phaseFail, "failed"
+			}
+			frame := m.View()
+			matches := colors.FindAllStringSubmatch(frame, -1)
+			if len(matches) == 0 {
+				t.Fatal("true-color styles were not exercised")
+			}
+			for _, c := range matches {
+				if c[1] != c[2] || c[2] != c[3] {
+					t.Fatalf("screen %d %s: chromatic shell escape %s", s, overlay, c[0])
+				}
+			}
+		}
+	}
+}
+
+func TestDefaultArtworkKeepsOriginalHalfBlockColors(t *testing.T) {
+	defer applyTheme(themes[0])
+	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	applyTheme(themes[0])
+	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	img.Set(0, 0, color.RGBA{R: 255, A: 255})
+	img.Set(1, 0, color.RGBA{R: 255, A: 255})
+	img.Set(0, 1, color.RGBA{B: 255, A: 255})
+	img.Set(1, 1, color.RGBA{B: 255, A: 255})
+	raw := strings.Join(renderArtwork(img, 2, 1), "\n")
+	if !strings.Contains(raw, "38;2;255;0;0") || !strings.Contains(raw, "48;2;0;0;255") {
+		t.Fatalf("half-block colors lost: %q", raw)
+	}
+	m := recentModel()
+	m.screen, m.themeName, m.art = screenFocus, "piskin", img
+	m.applyAutoTheme()
+	out := m.View()
+	if !strings.Contains(out, "38;2;255;0;0") || !strings.Contains(out, "48;2;0;0;255") {
+		t.Fatal("shell styling recolored artwork")
+	}
+	if accent != themes[0].accent {
+		t.Fatal("art recolored default shell")
+	}
+}
+
+func TestColorOnlyLegacyConfigKeepsItsOriginalBase(t *testing.T) {
+	cfg := map[string]string{"theme.accent": "#123456"}
+	got := themeFromConfig(cfg, "")
+	if got.name != "apple" || got.accent != "#123456" || got.fgBright != themeByName("apple").fgBright {
+		t.Fatal("existing color-only customization changed")
+	}
+	if got := themeFromConfig(cfg, "piskin"); got.name != "piskin" || got.accent != "#D0D0D0" {
+		t.Fatal("saved PISKIN selection is not fixed monochrome")
+	}
+	if len(cfg) != 1 || cfg["theme.accent"] != "#123456" {
+		t.Fatal("config resolution mutated existing keys")
 	}
 }

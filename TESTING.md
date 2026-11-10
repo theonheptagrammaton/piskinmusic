@@ -479,3 +479,74 @@ output and visible playback interactions are preserved.
 No additional browser polling, playback session, source capture or desktop
 configuration work was performed. Prior target playback/capture evidence remains
 unchanged; native macOS/Windows runtime checks were not repeated.
+
+## Phase 3 — monochrome shell and four screens — 2026-11-10
+
+Parent: `c0d4b2c`, on local `main` tracking the configured development fork
+`origin/main`. The working tree was clean at entry; the baseline `go test ./...`
+passed. This phase intentionally replaces the dashboard with Library, Focus,
+Visualizer and Lyrics, adds PISKIN MUSIC display branding and makes the new
+`piskin` palette the monochrome default. It does not change the module path,
+executable/installer aliases, authentication profiles, MPRIS IDs, playback
+lifecycle or capture service. No dependency was added; artwork still uses the
+original-color half-block renderer.
+
+Using `/tmp/piskin-toolchain/go/bin/go` (Go 1.26.11, native Linux ARM64):
+
+| Check | Result |
+| --- | --- |
+| `go test ./... -count=1` | PASS, 385 test/subtest passes, 3 opt-in skips, 0 failures; all 6 packages pass |
+| `go test -race ./... -count=1` | PASS, 385 test/subtest passes, 3 opt-in skips, 0 failures; all 6 packages pass |
+| `go vet ./...` | PASS |
+| `CGO_ENABLED=1 go build -o /tmp/piskin-phase3 .` | PASS |
+| `CGO_ENABLED=0 go build -o /tmp/piskin-phase3-nocgo .` | PASS |
+| `/tmp/piskin-phase3 --version` | PASS, PISKIN MUSIC display name; executable remains amtui |
+| `git diff --check` | PASS |
+
+The three skipped opt-in tests are `TestPulseLiveSmoke`,
+`TestPulseIsolatedLifecycle`, and `TestLinuxHeadedLoginCancellationLive`.
+No subscription playback or actual capture verification was repeated for this
+UI phase; the prior target evidence remains separate. Native macOS/Windows,
+interactive terminal input, and performance profiling were not repeated.
+
+Deterministic coverage includes:
+
+- All four screens at 40×12, 60×20, 80×24, 120×32, 180×50, wide/short 120×12,
+  and smaller/zero dimensions. Search, help, account, EQ and queue are resized
+  while open. Unicode/combining/emoji titles, exact frame bounds and nonempty
+  hit-rectangle bounds are checked. Offscreen pointer input cannot activate a
+  control, including tiny overlay frames.
+- Keyboard/click screen parity, forward/reverse visible-region focus, retained
+  per-screen focus, queue/recent/library/search selections and search results.
+  Digits remain query text in search and cannot change screens through blocking
+  overlays. Every screen has queue/search/EQ/account/help access.
+- Scrolled library/search rows are checked against actual rendered titles, then
+  their pointer commands execute against fake playback. Search append/play-next,
+  category clicks, transport pause/seek/shuffle/repeat/volume, EQ controls and
+  explicit account sign-out all retain keyboard command paths. General help
+  commands and both keys in paired entries are reachable by pointer. Narrow
+  help pages preserve every action without truncation.
+- True-color shell escape sequences are checked for equal RGB channels in all
+  default screens and overlays, boot and failure views. A red/blue image retains
+  its foreground/background colors through half-block rendering inside Focus;
+  artwork cannot recolor PISKIN shell tokens. ASCII rendering retains textual
+  screen/focus/selection/playing markers.
+- All six original palette names, saved palette precedence, custom legacy
+  overrides and existing color-only configs retain their behavior. Explicit or
+  saved `piskin` stays fixed monochrome. Theme resolution neither writes the
+  config nor changes its saved palette file. Preference writes occur only on
+  explicit user theme/EQ/viz actions.
+
+Existing focus tests now include the visible Library list; the visualizer View
+assertion explicitly selects the Visualizer screen. The zero-size resize check
+accepts an empty frame. Existing queue/recent playback, initialization,
+reconnect, artwork, EQ, account, installer and package regression assertions
+remain in place. Text frame review inspected all four screens at 40×12 and
+120×32 using a temporary ASCII render probe, removed after review. This was a
+render review, not a claim of interactive playback or hardware validation.
+
+The full diff was reviewed for geometry/command consistency and persisted-state
+compatibility. Only root UI code/tests and product/config documentation changed.
+No browser/profile, audio recording, generated binary or credential is committed.
+PCM waveform, explicit demo policy and resource/platform validation remain later
+phases. This phase is committed locally; no push is part of this request.

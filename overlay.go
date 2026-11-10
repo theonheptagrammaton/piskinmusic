@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -110,63 +111,64 @@ func (m model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) searchView() string {
-	bw := min(84, m.w-8)
-	iw := bw - 2 // inner width
-
-	pink := lipgloss.NewStyle().Foreground(accentHi)
-	dim := lipgloss.NewStyle().Foreground(fgDim)
-	faint := lipgloss.NewStyle().Foreground(fgFaint)
-
-	cursor := " "
-	if m.sInput {
-		cursor = pink.Render("▊")
-	}
-	input := pink.Render(" / ") + lipgloss.NewStyle().Foreground(fgBright).Render(m.sQuery) + cursor
-
-	var tabs []string
+func (m model) searchGeometry() (rect, []keyTarget, []keyTarget) {
+	body := rect{1, 4, max(0, m.w-2), max(0, m.h-6)}
+	var tabs, actions []keyTarget
+	x := 1
 	for i, name := range tabNames {
-		st := faint
-		if i == m.sTab {
-			st = pink.Bold(true)
-		}
-		tabs = append(tabs, st.Render(name))
+		tabs = append(tabs, keyTarget{rect{x, 2, len(name) + 2, 1}, fmt.Sprint(i), " " + name + " "})
+		x += len(name) + 2
 	}
-	tabLine := " " + strings.Join(tabs, faint.Render("  ·  "))
-
-	rows := min(12, m.h-12)
+	x = 1
+	for _, a := range []struct{ key, label string }{{"enter", "↵ Play/Search"}, {"a", "a Queue"}, {"A", "A Next"}, {"esc", "× Close"}} {
+		actions = append(actions, keyTarget{rect{x, m.h - 2, lipgloss.Width(a.label), 1}, a.key, a.label})
+		x += lipgloss.Width(a.label) + 1
+	}
+	return body.clipped(m.w, m.h), clipTargets(tabs, m.w, m.h), clipTargets(actions, m.w, m.h)
+}
+func (m model) searchView() string {
+	body, tabs, actions := m.searchGeometry()
+	cursor := ""
+	if m.sInput {
+		cursor = "▏"
+	}
+	lines := []string{pad("SEARCH APPLE MUSIC", m.w), pad(" / "+m.sQuery+cursor, m.w)}
+	tabLine := " "
+	for i, t := range tabs {
+		label := t.label
+		if i == m.sTab {
+			label = selectedRow("["+tabNames[i]+"]", t.w)
+		}
+		tabLine += label
+	}
+	lines = append(lines, pad(tabLine, m.w), pad("", m.w))
 	list := m.curList()
-	var body []string
-	switch {
-	case m.sBusy:
-		body = append(body, dim.Render(" searching…"))
-	case len(list) == 0 && strings.TrimSpace(m.sQuery) != "":
-		body = append(body, faint.Render(" no results — enter to search"))
-	case len(list) == 0:
-		body = append(body, faint.Render(" your library — albums & playlists tabs · type to search the catalog"))
-	default:
-		for i := 0; i < min(rows, len(list)); i++ {
+	start := listWindow(m.sSel, len(list), body.h)
+	for r := 0; r < body.h; r++ {
+		line := ""
+		i := start + r
+		if m.sBusy {
+			if r == 0 {
+				line = " searching…"
+			}
+		} else if i < len(list) {
 			tr := list[i]
-			line := dim.Render(" "+tr.Title) + faint.Render(" — "+tr.Artist)
+			line = " " + tr.Title + " — " + tr.Artist
 			if tr.Duration > 0 {
-				line += faint.Render("  " + fmtTime(tr.Duration))
+				line += " " + fmtTime(tr.Duration)
 			}
 			if !m.sInput && i == m.sSel {
-				line = lipgloss.NewStyle().Background(selBg).Render(pad(pink.Render(" ")+line, iw))
+				line = selectedRow("▸"+line, body.w)
 			}
-			body = append(body, pad(line, iw))
+		} else if r == 0 {
+			line = " no results · type then enter to search"
 		}
+		lines = append(lines, pad(" "+pad(line, body.w), m.w))
 	}
-	hint := faint.Render(" ↵ play/search · ↑↓ list · a queue · A next · tab category · esc close")
-	if m.note != "" {
-		hint = dim.Render(" " + m.note)
+	footer := " "
+	for _, a := range actions {
+		footer += a.label + " "
 	}
-
-	content := pad(input, iw) + "\n" + pad(tabLine, iw) + "\n\n" +
-		strings.Join(body, "\n") + "\n\n" + pad(hint, iw)
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).BorderForeground(accent).
-		Width(iw).Render(content)
-	title := pink.Bold(true).Render("SEARCH APPLE MUSIC")
-	return lipgloss.Place(m.w, m.h, lipgloss.Center, lipgloss.Center, title+"\n"+box)
+	lines = append(lines, pad(footer, m.w), pad(m.note, m.w))
+	return strings.Join(lines, "\n")
 }

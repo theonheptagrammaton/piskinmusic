@@ -130,7 +130,7 @@ as do race, vet and cgo/nocgo builds. Sixty rendered frames match parent commit
 and padding. See the phase 2 evidence in TESTING.md. No live browser or audio
 verification was repeated for this extraction.
 
-### 3 — Monochrome shell and four primary screens
+### 3 — Monochrome shell and four primary screens (complete)
 
 Extend centralized theme tokens and shared components. Add screen selection and
 screen-specific layouts; retain search, queue, EQ, account and help access.
@@ -173,7 +173,10 @@ capture status. Push completed commits only to a verified development branch.
 
 ## Current change scope
 
-Phases 0–2 are complete. The phase 2 extraction preserves the dashboard and
-package boundaries; branding, theme changes, primary screens and PCM waveform
-work remain pending in phases 3–5. Historical playback/capture verification and
-the phase 2 automated checks are recorded separately in TESTING.md.
+Phases 0–3 are complete. Phase 3 adds PISKIN MUSIC branding, a fixed monochrome
+default, Library/Focus/Visualizer/Lyrics screens, responsive shared geometry,
+queue/EQ/search/account/help access and keyboard/mouse navigation. Original
+palette names and saved config/profile/alias/MPRIS identities remain compatible.
+Original-color artwork uses the existing half-block renderer; no dependency was
+added. See the phase 3 evidence in TESTING.md. PCM waveform, explicit demo
+policy and resource/platform validation remain phases 4–5.

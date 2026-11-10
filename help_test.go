@@ -9,7 +9,7 @@ import (
 	"github.com/muesli/termenv"
 )
 
-// The app refuses to draw below this, so it is the size everything has to fit.
+// Retain the original 70×22 dashboard regression alongside new 40×12 coverage.
 const (
 	minCols = 70
 	minRows = 22
@@ -106,5 +106,66 @@ func TestHelpKeyOpensAndAnyKeyCloses(t *testing.T) {
 	}
 	if after.vizMode != vizBars {
 		t.Errorf("the dismissing key also cycled the visualizer to %d", after.vizMode)
+	}
+}
+
+func TestHelpRetainsEveryActionAcrossNarrowPages(t *testing.T) {
+	for _, size := range [][2]int{{40, 12}, {60, 20}, {80, 24}, {120, 32}} {
+		m := model{w: size[0], h: size[1], phase: phaseReady, helpOpen: true}
+		_, _, _, pages := m.helpGeometry()
+		all := ""
+		for range pages {
+			out := m.helpView()
+			all += out
+			for _, line := range strings.Split(out, "\n") {
+				if lipgloss.Width(line) > m.w {
+					t.Fatalf("help overflows %v", size)
+				}
+			}
+			next, _ := m.Update(keyMessage("right"))
+			m = next.(model)
+			if !m.helpOpen {
+				t.Fatal("paging closed help")
+			}
+		}
+		if m.helpPage != 0 {
+			t.Fatal("paging did not wrap")
+		}
+		for _, section := range helpSections {
+			for _, e := range section.entries {
+				if !strings.Contains(all, e.action) {
+					t.Fatalf("%v lost action %q", size, e.action)
+				}
+			}
+		}
+	}
+}
+
+func TestHelpMouseCanRunEachGeneralCommandAndBothScreenKeys(t *testing.T) {
+	t.Setenv("AMTUI_CONFIG_DIR", t.TempDir())
+	m := recentModel()
+	m.w, m.h = 40, 12
+	m.eng = &screenPlayback{}
+	m.helpOpen = true
+	_, _, _, pages := m.helpGeometry()
+	seen := map[string]bool{}
+	for page := 0; page < pages; page++ {
+		m.helpPage = page
+		for _, a := range m.helpTargets() {
+			next, _ := m.Update(pressAt(a.x, a.y))
+			got := next.(model)
+			if a.key != "?" && got.helpOpen {
+				t.Fatalf("help click %s did not dispatch", a.key)
+			}
+			if a.key == "4" && got.screen != screenLyrics {
+				t.Fatal("second screen key in row is inert")
+			}
+			seen[a.key] = true
+		}
+	}
+	for _, key := range []string{"1", "2", "3", "4", "c", "esc", "[", "]", "player:n", "player:p", "player:space", "player:←", "player:→", "player:↑", "player:↓", "player:s", "player:r", "v", "t", "Q", "eq:P", "eq:0", "a", "R", "q"} {
+		if !seen[key] {
+			t.Fatalf("mouse command %q missing", key)
+		}
 	}
 }

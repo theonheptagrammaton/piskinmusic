@@ -1,11 +1,15 @@
 # ~/.config/amtui/config.toml — every key is optional.
 
 [theme]
-# apple (default) | catppuccin | gruvbox | nord | mono | auto
-# "auto" takes the accent from the current track's artwork.
-name = "apple"
+# piskin (default) | apple | catppuccin | gruvbox | nord | mono | auto
+# All original palettes are explicit legacy choices; saved choices are honored.
+# An existing color-only config with no named/saved palette keeps the apple base.
+# "auto" takes the accent from artwork only when explicitly selected.
+# PISKIN always keeps the shell monochrome, with original-color artwork.
+name = "piskin"
 
-# Override any individual color. Hex only, and keep the quotes.
+# Overrides apply to named legacy palettes; piskin remains fixed monochrome.
+# Hex only, and keep the quotes.
 # accent     = "#FA233B"
 # accent_hi  = "#FB5C74"
 # accent_lo  = "#8A1E30"
@@ -14,11 +18,13 @@ name = "apple"
 # fg_faint   = "#5A5A5E"
 # border_dim = "#3A3A3C"
 # sel_bg     = "#2C2C2E"
+# background = "#000000"
+# selected_text = "#F2F2F7"
 
 [visualizer]
 peaks = true   # falling peak markers above the spectrum bars
 pulse = true   # accent brightness pulses with the bass
-wave  = true   # progress bar drawn as the played waveform
+wave  = true   # progress bar shows recorded band-derived loudness (not PCM)
 
 # The shape — bars, torus or sphere — is not set here. Press "v" to cycle it;
 # the choice is remembered in ~/.config/amtui/vizmode, the same way the theme

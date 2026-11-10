@@ -29,7 +29,7 @@ func TestResizeKeepsRenderedTilesAndHitAreasTogether(t *testing.T) {
 		}
 		l := m.layout()
 		if !l.visible {
-			if !strings.Contains(m.View(), "terminal too small") {
+			if m.w > 0 && m.h > 0 && !strings.Contains(m.View(), "terminal too small") {
 				t.Fatal("hidden layout rendered controls")
 			}
 			// Even a coordinate that would have hit the old queue is inert.

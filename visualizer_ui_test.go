@@ -55,6 +55,7 @@ func TestVisualizerTitleReflectsCaptureState(t *testing.T) {
 
 func TestViewRendersVisualizerStateLabel(t *testing.T) {
 	m := model{
+		screen:     screenVisualizer,
 		w:          100,
 		h:          30,
 		phase:      phaseReady,
