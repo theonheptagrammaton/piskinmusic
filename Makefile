@@ -8,7 +8,10 @@ VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || git rev-pars
 DIST ?= dist
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: test test-race vet build build-nocgo verify verify-minos dist dist-clean
+.PHONY: test test-race vet build build-nocgo verify verify-minos dist dist-clean notices
+
+notices:
+	GO="$(GO)" python3 scripts/license-notices.py
 
 test:
 	CGO_ENABLED=1 $(GO) test ./...
@@ -41,7 +44,7 @@ dist-clean:
 # linux keeps CGO_ENABLED=0 on purpose: its capture backend speaks the
 # PulseAudio protocol in pure Go, so a static binary loses nothing and runs on
 # any glibc/musl distro.
-dist: dist-clean
+dist: dist-clean notices
 	@mkdir -p "$(DIST)"
 	@host="$$($(GO) env GOOS)"; \
 	for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64 windows/amd64 windows/arm64; do \
@@ -58,7 +61,9 @@ dist: dist-clean
 	  echo "BUILD $$target (cgo=$$cgo)"; \
 	  CGO_ENABLED=$$cgo GOOS=$$os GOARCH=$$arch \
 	    $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o "$(DIST)/$$name/amtui$$ext" . || exit 1; \
-	  cp README.md LICENSE docs/config.example.toml "$(DIST)/$$name/"; \
+	  cp README.md LICENSE THIRD_PARTY_NOTICES.txt TESTING.md PLAN.md ARCHITECTURE.md DESIGN.md docs/config.example.toml "$(DIST)/$$name/"; \
+	  mkdir -p "$(DIST)/$$name/docs"; \
+	  cp docs/RELEASE_NOTES.md docs/config.example.toml "$(DIST)/$$name/docs/"; \
 	  if [ "$$os" = "windows" ]; then \
 	    (cd "$(DIST)" && zip -qr "$$name.zip" "$$name"); \
 	  else \

@@ -43,7 +43,7 @@ jobs:
           fi
 
       - name: Verify before shipping
-        run: make vet test
+        run: make verify
 
       # Both the tag name and the dispatch input reach the shell through env
       # rather than ${{ }} interpolation, so no crafted version string can be

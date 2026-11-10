@@ -1,0 +1,46 @@
+goos: linux
+goarch: arm64
+pkg: github.com/k1y0miiii/applemusic-tui
+BenchmarkTarget/FocusPlaying-4         	      81	  27445343 ns/op	 5521898 B/op	   68817 allocs/op
+BenchmarkTarget/FocusPlaying-4         	      48	  27087555 ns/op	 5586565 B/op	   68815 allocs/op
+BenchmarkTarget/FocusPlaying-4         	      54	  24759013 ns/op	 5705431 B/op	   68817 allocs/op
+BenchmarkTarget/FocusPlaying-4         	      63	  21333321 ns/op	 4994539 B/op	   68813 allocs/op
+BenchmarkTarget/FocusPlaying-4         	     100	  24160892 ns/op	 5572380 B/op	   68816 allocs/op
+BenchmarkTarget/LyricsPlaying-4        	      52	  22308384 ns/op	 6029861 B/op	   68843 allocs/op
+BenchmarkTarget/LyricsPlaying-4        	      52	  21876676 ns/op	 4635018 B/op	   68835 allocs/op
+BenchmarkTarget/LyricsPlaying-4        	      42	  29635681 ns/op	 5819180 B/op	   68841 allocs/op
+BenchmarkTarget/LyricsPlaying-4        	      43	  24984778 ns/op	 6053609 B/op	   68844 allocs/op
+BenchmarkTarget/LyricsPlaying-4        	      60	  18166132 ns/op	 5280982 B/op	   68840 allocs/op
+BenchmarkTarget/VisualizerPlaying-4    	     100	  10059504 ns/op	 2242447 B/op	   16379 allocs/op
+BenchmarkTarget/VisualizerPlaying-4    	     110	  12606511 ns/op	 2607652 B/op	   16394 allocs/op
+BenchmarkTarget/VisualizerPlaying-4    	     100	  10171639 ns/op	 2071935 B/op	   16378 allocs/op
+BenchmarkTarget/VisualizerPlaying-4    	     166	   8313681 ns/op	 2318836 B/op	   16439 allocs/op
+BenchmarkTarget/VisualizerPlaying-4    	     114	   9520158 ns/op	 2257201 B/op	   16398 allocs/op
+BenchmarkTarget/LibraryPlaying-4       	     708	   3371854 ns/op	  664736 B/op	    4750 allocs/op
+BenchmarkTarget/LibraryPlaying-4       	     379	   3065986 ns/op	  798797 B/op	    4708 allocs/op
+BenchmarkTarget/LibraryPlaying-4       	     406	   3033969 ns/op	  735994 B/op	    4711 allocs/op
+BenchmarkTarget/LibraryPlaying-4       	     388	   3512061 ns/op	  666972 B/op	    4709 allocs/op
+BenchmarkTarget/LibraryPlaying-4       	     355	   3503641 ns/op	  578502 B/op	    4705 allocs/op
+BenchmarkTarget/FocusIdle-4            	      63	  28322619 ns/op	 4926176 B/op	   68784 allocs/op
+BenchmarkTarget/FocusIdle-4            	      50	  24505436 ns/op	 5572294 B/op	   68788 allocs/op
+BenchmarkTarget/FocusIdle-4            	      56	  21243883 ns/op	 5002618 B/op	   68786 allocs/op
+BenchmarkTarget/FocusIdle-4            	     100	  22164886 ns/op	 5785222 B/op	   68789 allocs/op
+BenchmarkTarget/FocusIdle-4            	      49	  31400715 ns/op	 6144992 B/op	   68789 allocs/op
+BenchmarkTarget/VisualizerReduced-4    	     100	  10617924 ns/op	 2498374 B/op	   16380 allocs/op
+BenchmarkTarget/VisualizerReduced-4    	     100	  10454068 ns/op	 2114699 B/op	   16379 allocs/op
+BenchmarkTarget/VisualizerReduced-4    	     123	  10699344 ns/op	 2452725 B/op	   16408 allocs/op
+BenchmarkTarget/VisualizerReduced-4    	     126	   9738261 ns/op	 2421597 B/op	   16411 allocs/op
+BenchmarkTarget/VisualizerReduced-4    	     100	  10691462 ns/op	 2455671 B/op	   16379 allocs/op
+BenchmarkTarget/CoveredVisualizer-4    	    1208	   1282186 ns/op	  151753 B/op	    1596 allocs/op
+BenchmarkTarget/CoveredVisualizer-4    	    1638	    982098 ns/op	  151752 B/op	    1596 allocs/op
+BenchmarkTarget/CoveredVisualizer-4    	    1795	    737179 ns/op	  151751 B/op	    1596 allocs/op
+BenchmarkTarget/CoveredVisualizer-4    	    1820	    847729 ns/op	  151748 B/op	    1596 allocs/op
+BenchmarkTarget/CoveredVisualizer-4    	     894	   1162720 ns/op	  151743 B/op	    1596 allocs/op
+BenchmarkTargetLayout-4                	   98576	     12556 ns/op	    1696 B/op	      51 allocs/op
+BenchmarkTargetLayout-4                	  156860	      7769 ns/op	    1696 B/op	      51 allocs/op
+BenchmarkTargetLayout-4                	  111111	     10064 ns/op	    1696 B/op	      51 allocs/op
+BenchmarkTargetLayout-4                	  135739	     10120 ns/op	    1696 B/op	      51 allocs/op
+BenchmarkTargetLayout-4                	  109336	     10450 ns/op	    1696 B/op	      51 allocs/op
+PASS
+
+Process user_s=69.517085 system_s=2.436644 max_rss_KiB=47536

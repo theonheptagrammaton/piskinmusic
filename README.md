@@ -357,6 +357,12 @@ pulse, the loudness timeline and the album art on or off, and opts into demo.
 
 ## Configuration
 
+Set `[ui] reduced_motion = true` in `config.toml` to hold shapes still, disable
+the bass pulse, and limit active visualization updates to 10 Hz. Idle/hidden UI
+ticks run at 4 Hz; capture and live history continue independently. See
+[migration and release notes](docs/RELEASE_NOTES.md) for resource policy and
+platform validation requirements.
+
 | Environment variable | Effect |
 | --- | --- |
 | `AMTUI_CHROME` | Path to the Chrome/Chromium binary (overrides auto-detection; also covers Microsoft Edge on Windows) |

@@ -40,7 +40,9 @@ Root commands also fetch artwork, LRCLIB lyrics and opt-in Last.fm data.
 | Analysis | 4096-frame Hann FFT, 32 frequency bands, stereo power handling, attack/release smoothing. The service owns its goroutine, analyzer, cancellation and latest atomic snapshot. |
 | Integration | `mpris` depends on a small Controls interface, not the UI; `desktop.go` adapts the engine. `lyrics` calls LRCLIB; `lastfm` handles optional authentication/scrobbling, with listening-time accounting in `scrobble.go`. |
 
-The UI ticks at 30 Hz and polls playback separately (500 ms). Frames contain
+The UI ticks at up to 30 Hz for visible playing visualization, 10 Hz with
+`ui.reduced_motion`, and 4 Hz on other/idle/hidden screens. Boot/loading uses
+10 Hz unless motion is reduced. Playback polling remains separate (500 ms). Frames contain
 bands, a fixed-size PCM envelope, negotiated format, total complete frames read,
 source, Live, and local read-completion timestamp. The UI checks freshness at
 400 ms: opening waits for the first fresh PCM frame, stale capture clears its
@@ -201,3 +203,26 @@ Authentication paths, module/executable aliases, engine APIs, MPRIS IDs, audio
 service and visualization IDs are unchanged. The existing half-block artwork
 renderer retains source colors, including inside the black shell. No terminal
 image protocol or new image dependency was added.
+
+## Resource policy — phase 5
+
+The UI event loop owns a shared per-model cache across Bubble Tea value copies.
+It retains at most 16 rendered artwork variants and 32,768 cells in total,
+keyed by immutable image identity, dimensions and terminal color profile.
+Oversized/non-comparable images use the original renderer without retention.
+Replacement images and resizes cannot reuse stale cells. Decoded track covers
+retain the existing eight-cover cache. A single static geometry entry is keyed
+by size, screen, queue/EQ state and recent-content presence. Clock/volume/
+shuffle/repeat transport geometry stays dynamic; rendering and hit testing
+read the same result. The header cache also tracks palette and color profile.
+
+Only visible visualization advances shape geometry/peaks; reduced motion freezes
+orientation and removes the kick/pulse while real data can still update. Blur
+reporting freezes the last terminal frame until focus returns. Screen/overlay
+dispatch avoids rendering covered primary content. Capture/analysis and history
+eligibility remain independent of visibility; each tick consumes only the latest
+owned frame, without queueing missed UI frames. Adaptive band smoothing uses
+elapsed time. Notices and initialization timeouts use elapsed timer timestamps;
+optimistic progress and scrobbling cap suspend gaps at one second of listening.
+All waveform storage remains fixed (4096 PCM frames, 128 envelope points,
+240 track loudness buckets); no recording grows with track duration.

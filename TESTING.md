@@ -649,3 +649,157 @@ to the surviving sink, server loss surfaced EOF, and a fresh server/source
 restored capture. Only fixture-owned daemons were stopped. The user's audio
 server was never restarted. Actual physical device hotplug, native macOS tap,
 Windows runtime and resource/performance measurements remain phase 5 work.
+
+## Resource optimization — phase 5 (2026-11-11)
+
+Baseline: `1e2b3be8bc1e098eabee58a9e9707dfa3ffe415d`. Optimized source is the
+resource optimization commit containing this record. Both were measured on this
+same Apple MacBook Pro (13-inch, M1, 2020), running Linux ARM64
+`7.2.11-14-1-ARCH`, Go `1.26.11`, with `GOMAXPROCS=4` and the existing `schedutil`
+governor. No desktop settings, dependencies, browser profile or DRM changed.
+
+### Same-target performance comparison
+
+`scripts/measure-performance.py` checks out the baseline in a disposable detached
+worktree, copies the exact same `performance_test.go` into it, and compiles both
+test executables before measuring them sequentially. Harness SHA-256:
+`e52074261f989367bf08f45892da4ce0f52d131dd9a4f7dcb5908fc9f4981460`.
+The workload uses synthetic metadata/spectrum and a deterministic 256px color
+image, 120×40 terminal cells, TrueColor, warmed caches, real Update/View code,
+five one-second benchmark samples per case. Browser/CDP, network, capture/FFT,
+and terminal I/O are excluded. This measures target UI cost, not whole-player
+CPU or an audible subscription session. No other build/test jobs ran during
+the comparison. The governor and other ordinary desktop processes were not
+controlled; five samples do not establish statistical significance.
+
+Median Update/View results (forced equal tick counts, so cadence savings are
+separate):
+
+| Workload | Before ms/frame | After ms/frame | Before → after allocations/frame |
+| --- | ---: | ---: | ---: |
+| Focus playing | 24.76 | 11.95 | 68,816 → 6,355 |
+| Lyrics playing | 22.31 | 9.27 | 68,841 → 6,383 |
+| Visualizer playing | 10.06 | 10.48 | 16,394 → 16,052 |
+| Library playing | 3.37 | 2.31 | 4,709 → 4,387 |
+| Focus idle | 24.51 | 9.64 | 68,788 → 6,325 |
+| Visualizer reduced motion | 10.62 | 8.41 | 16,380 → 16,065 |
+| Visualizer covered by help | 0.98 | 0.75 | 1,596 → 1,565 |
+| Shared layout only | 0.0101 | 0.0036 | 51 → 14 |
+
+Focus/Lyrics time decreased 52%/58%, with about 91% fewer allocations. Median
+allocated bytes/frame decreased from 5.57/5.82 MB to 3.70/3.74 MB respectively.
+The active visualizer median was 4.2% slower; its sample ranges overlap, so no
+per-frame improvement is claimed for that uncached drawing path.
+
+A separate real-timer loop ran each workload for roughly three seconds using
+the actual production timer factory. Each iteration waits for its timer, calls
+Update and View, and discards effects; it is not the full Bubble Tea scheduler.
+Observed cadence includes synchronous rendering overhead and is below the
+configured maximum:
+
+| Workload | Before observed Hz | After observed Hz |
+| --- | ---: | ---: |
+| Focus playing | 17.98 | 3.80 |
+| Focus idle | 16.37 | 3.82 |
+| Visualizer playing | 19.93 | 17.99 |
+| Visualizer reduced motion | 25.00 | 7.93 |
+| Blurred visualizer | 18.54 | 3.99 |
+
+Across these five timed cases, process user+system CPU was **4.957 → 1.888 s**
+(62% lower); peak RSS was **45,712 → 44,560 KiB** (roughly unchanged). Blurred
+allocation fell from 110.10 MB to 85.7 KB per three-second run. RSS is the whole
+test executable's high-water mark; retained-heap snapshots include uncollected
+objects and are not a leak test. Cache bounds are tested directly: at most 16
+artwork variants and 32,768 cells, one geometry/header entry and one last frame.
+Existing waveform storage remains fixed at 4096 stereo PCM frames, 128 envelope
+points and 240 track loudness buckets, regardless of track duration.
+
+Raw records: [before benchmark](docs/performance/before-bench.txt),
+[after benchmark](docs/performance/after-bench.txt),
+[before timed loop](docs/performance/before-cadence.txt),
+[after timed loop](docs/performance/after-cadence.txt).
+Reproduce on an otherwise idle Linux target:
+
+```sh
+GO=/path/to/go python3 scripts/measure-performance.py 1e2b3be /tmp/piskin-performance
+```
+
+### Verification and acceptance
+
+| Check | Result on this Linux ARM64 host |
+| --- | --- |
+| Unchanged baseline `go test ./...` | PASS, all six packages |
+| `go mod verify`, `go vet ./...` | PASS |
+| Final `go test -json -count=1 ./...` | 408 PASS, 0 FAIL, 6 explicit opt-in SKIP; all six packages pass |
+| Final `go test -race -json -count=1 ./...` | Same counts; no race reported |
+| Native cgo and nocgo builds | PASS |
+| Linux amd64/arm64 and Windows amd64/arm64 nocgo release builds | PASS |
+| Darwin amd64/arm64 nocgo cross-builds | PASS, explicitly without live capture; not macOS release substitutes |
+| PTY acceptance using race-instrumented test executable | PASS: actual keyboard, SGR mouse, focus-report and SIGWINCH input through Bubble Tea |
+| Real Linux Source/Service/UI capture repeat under race | PASS with fresh silence, not a new playing/audibility claim |
+| `git diff --check` | PASS |
+
+New regression checks compare cached cells to the original renderer at TrueColor,
+256-color and ASCII profiles, exercise resize/track churn against cache bounds,
+compare cached geometry/header to uncached results across screens/overlays and
+palette changes, and verify continued live history behind hidden layers. Timing
+checks cover paused/reduced/hidden cadence, frozen shape orientation, no reduced
+pulse, blur/focus refresh, notice expiry, progress/scrobble elapsed accounting,
+and capped suspend gaps. The earlier deterministic PCM/stereo/ownership tests
+remain in place. No waveform implementation was replaced just to re-establish
+an already fixed storage bound.
+
+The PTY driver uses fixture playback without browser/account access. It visits
+all four screens by keyboard/mouse, pauses by keyboard and resumes by mouse,
+seeks via the drawn progress bar, opens/closes help and queue, sends terminal
+blur/focus, resizes below the minimum and back, and quits. Existing navigation,
+search, EQ, account, scrolling, overlay isolation and geometry acceptance tests
+also pass. This is automated terminal acceptance, not a new manual Ghostty or
+native Windows desktop observation.
+
+```sh
+go test -race -c -o /tmp/piskin-terminal.test .
+python3 scripts/terminal-acceptance.py /tmp/piskin-terminal.test
+AMTUI_TEST_PULSE=1 go test -race -v -count=1 -timeout=25s . ./visualizer \
+  -run '^(TestPulseLiveSmoke|TestPCMLiveUI)$'
+```
+
+The live repeat at 01:27 TRT selected PIPEWIRE, float32/48,000 Hz/stereo.
+Source and Service each read 288,000 finite samples over three seconds; Service
+observed 89 fresh frames and a 4096-frame/128-point window. RMS, peaks and FFT
+were zero throughout. UI received a fresh 1440-frame envelope and passed all
+four modes at 40×12, 80×24 and 120×32. No playback was started for this repeat.
+The earlier playing/paused/resumed phase 4 evidence remains historical evidence.
+
+### Dependencies, migration, packaging and outstanding gates
+
+`go.mod`, `go.sum` and upstream MIT LICENSE are unchanged. The review checked
+license material for all 10 direct and 19 indirect pinned requirements, including
+Windows-only modules. Root module licenses are MIT/BSD; Gonum also supplies
+incorporated-algorithm notices. `THIRD_PARTY_NOTICES.txt` preserves supplied
+licenses, authors/patents and those supplemental notices plus the Go runtime
+license. The pinned `go-localereader` has an MIT/author declaration in README
+and no standalone license file; that original README is included. This is a
+source/notice review, not a vulnerability audit or a license for external CDMs.
+No browser, DRM components, fonts or music content are bundled.
+
+Migration/configuration behavior is documented in
+[docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md). Packaging includes the original
+LICENSE, dependency notices, README, verification/design documents, example
+configuration and migration notes. `make dist VERSION=phase5-dev` built all four
+Linux/Windows archives and SHA256SUMS on Linux; macOS release targets were skipped
+explicitly. All four archive hashes were independently recomputed, expected
+binary/document/configuration/notice entries inspected, and their LICENSE bytes
+compared to the original: PASS. These are development artifacts under ignored
+`dist/`, not a published release. No release tag was created.
+
+**Still required before phase 5 can be declared fully complete:** native macOS
+permissioned playing/paused/resumed capture, plus native
+Windows runtime/installer results. This Linux session cannot execute CoreAudio
+or Windows desktop APIs. The macOS development workflow runs native cgo tests,
+race/vet/builds, the Mach-O deployment check and six-target packaging; the Windows
+workflow retains its browser/installer acceptance. Hosted native unit tests alone
+cannot establish permissioned live capture. The strengthened macOS live smoke
+tests now fail on zero received PCM and support `REQUIRE_SIGNAL=1`; the new live
+Service check requires a fresh owned PCM envelope. Both remain opt-in, with
+commands in the release notes. Unsupported capture remains honestly unavailable.

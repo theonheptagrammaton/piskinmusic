@@ -1,0 +1,34 @@
+name: verify
+
+on:
+  push:
+    branches: ["development/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: Install Chrome if absent
+        run: |
+          if [ ! -d "/Applications/Google Chrome.app" ]; then
+            brew install --cask google-chrome
+          fi
+      # Includes cgo native conversion, ring/SPSC, cancellation and teardown
+      # tests. Permissioned live capture is a separate opt-in hardware gate.
+      - name: Verify native macOS and portable builds
+        run: make verify
+      - name: Package every release target without publishing
+        run: make dist VERSION="dev-${GITHUB_SHA::7}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: amtui-development-packages
+          path: dist/

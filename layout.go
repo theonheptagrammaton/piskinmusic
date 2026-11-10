@@ -59,6 +59,25 @@ type layout struct {
 }
 
 func (m model) layout() layout {
+	key := layoutKey{m.w, m.h, m.screen, m.queueOpen, m.eqOpen, len(m.recent) > 0}
+	var l layout
+	if m.renderCache != nil && m.renderCache.hasGeometry && m.renderCache.geometryKey == key {
+		l = m.renderCache.geometry
+	} else {
+		l = m.staticLayout()
+		if m.renderCache != nil {
+			m.renderCache.geometry, m.renderCache.geometryKey, m.renderCache.hasGeometry = l, key, true
+		}
+	}
+	if l.visible {
+		// Clock width, shuffle, repeat and volume affect transport geometry.
+		barX, barW := m.progressGeometry(l.transport.w)
+		l.progress = rect{l.transport.x + barX, l.transport.y + 1, barW, 1}
+	}
+	return l
+}
+
+func (m model) staticLayout() layout {
 	l := layout{visible: m.w >= 40 && m.h >= 12, topH: m.h - 4, queueY: 2}
 	if !l.visible {
 		return l
@@ -123,8 +142,6 @@ func (m model) layout() layout {
 		}
 	}
 	l.transport = rect{1, l.topH + 1, m.w - 2, 2}
-	barX, barW := m.progressGeometry(l.transport.w)
-	l.progress = rect{l.transport.x + barX, l.transport.y + 1, barW, 1}
 	playX := 4
 	if l.transport.w < 68 {
 		playX = 3

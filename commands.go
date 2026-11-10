@@ -44,7 +44,10 @@ func (m model) commands() commandSet {
 		c.tileArt = fetchTileArtCmd
 	}
 	if c.tick == nil {
-		c.tick = tick
+		interval := m.tickInterval()
+		c.tick = func() tea.Cmd {
+			return tea.Tick(interval, func(t time.Time) tea.Msg { return tickMsg(t) })
+		}
 	}
 	if c.poll == nil {
 		c.poll = poll
@@ -57,10 +60,6 @@ func (m model) commands() commandSet {
 
 func poll() tea.Cmd {
 	return tea.Tick(500*time.Millisecond, func(time.Time) tea.Msg { return pollMsg{} })
-}
-
-func tick() tea.Cmd {
-	return tea.Tick(time.Second/30, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
 func closeServiceAsync(service *visualizer.Service) {

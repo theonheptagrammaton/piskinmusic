@@ -21,6 +21,11 @@ name = "piskin"
 # background = "#000000"
 # selected_text = "#F2F2F7"
 
+[ui]
+# Keep shapes still, disable bass pulse, and limit active data updates to 10 Hz.
+# Idle and hidden UI ticks run at 4 Hz; capture/history continue independently.
+reduced_motion = false
+
 [visualizer]
 demo  = false  # opt into legacy DEMO/SIMULATED bands only if capture is unavailable
 peaks = true   # falling peak markers above the spectrum bars

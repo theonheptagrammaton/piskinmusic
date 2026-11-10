@@ -1,0 +1,20 @@
+=== RUN   TestTargetCadenceMeasurement
+=== RUN   TestTargetCadenceMeasurement/FocusPlaying
+    performance_test.go:127: frames=12 elapsed=3.156996195s Hz=3.80 allocated_bytes=62783912 allocations=76494 retained_heap=9216688
+=== RUN   TestTargetCadenceMeasurement/FocusIdle
+    performance_test.go:127: frames=12 elapsed=3.137611634s Hz=3.82 allocated_bytes=49977312 allocations=76082 retained_heap=17292936
+=== RUN   TestTargetCadenceMeasurement/VisualizerPlaying
+    performance_test.go:127: frames=54 elapsed=3.00217452s Hz=17.99 allocated_bytes=154298648 allocations=862986 retained_heap=19930200
+=== RUN   TestTargetCadenceMeasurement/VisualizerReduced
+    performance_test.go:127: frames=24 elapsed=3.026979022s Hz=7.93 allocated_bytes=65176112 allocations=381245 retained_heap=10200656
+=== RUN   TestTargetCadenceMeasurement/BlurredVisualizer
+    performance_test.go:127: frames=12 elapsed=3.007091298s Hz=3.99 allocated_bytes=85728 allocations=168 retained_heap=9085128
+--- PASS: TestTargetCadenceMeasurement (15.39s)
+    --- PASS: TestTargetCadenceMeasurement/FocusPlaying (3.17s)
+    --- PASS: TestTargetCadenceMeasurement/FocusIdle (3.17s)
+    --- PASS: TestTargetCadenceMeasurement/VisualizerPlaying (3.01s)
+    --- PASS: TestTargetCadenceMeasurement/VisualizerReduced (3.04s)
+    --- PASS: TestTargetCadenceMeasurement/BlurredVisualizer (3.01s)
+PASS
+
+Process user_s=1.795123 system_s=0.092785 max_rss_KiB=44560

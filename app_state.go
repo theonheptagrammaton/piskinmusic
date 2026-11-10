@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"image"
+	"math"
 	"strings"
 	"time"
 
@@ -93,6 +94,9 @@ type (
 type model struct {
 	w, h         int
 	t            float64 // seconds since start, drives animation
+	lastTick     time.Time
+	blurred      bool
+	renderCache  *renderCache
 	phase        phase
 	status       string
 	note         string
@@ -308,16 +312,23 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.renderCache == nil {
+		m.renderCache = &renderCache{}
+	}
 	switch msg := msg.(type) {
+	case tea.BlurMsg:
+		m.blurred = true
+	case tea.FocusMsg:
+		m.blurred = false
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
 		m.normalizeFocus()
 	case tickMsg:
 		var visualizerClose tea.Cmd
 		now := time.Time(msg)
-		m.t += 1.0 / 30
+		elapsed := m.tickElapsed(now)
 		if m.phase == phaseReady && m.st.Playing && m.st.Pos < m.st.Dur {
-			m.st.Pos += time.Second / 30 // optimistic between polls
+			m.st.Pos = min(m.st.Pos+elapsed, m.st.Dur) // optimistic between polls
 		}
 		if m.loading != "" && m.t-m.loadStart > 12 && !m.audioInitializing() {
 			m.loading = "" // give up quietly
@@ -354,8 +365,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		switch m.captureStatus() {
 		case captureLive:
+			alpha := 1 - math.Pow(0.55, elapsed.Seconds()*30)
 			for i := range m.vizBands {
-				m.vizBands[i] += (m.vizTargets[i] - m.vizBands[i]) * 0.45
+				m.vizBands[i] += (m.vizTargets[i] - m.vizBands[i]) * alpha
 			}
 		case captureDemo:
 			m.vizBands = simulatedBands(m.t, m.st.Playing)
@@ -363,13 +375,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.vizBands = [32]float64{}
 			m.vizPeaks = [32]float64{}
 		}
-		decayPeaks(&m.vizPeaks, m.vizBands)
-		m.orbKickBase, m.orbKick = bassKick(m.orbKickBase, m.orbKick, bassLevel(m.vizBands))
-		m.orbSpin, m.orbWobble = orbAdvance(m.orbSpin, m.orbWobble, m.orbKick)
+		if m.visualizerVisible() {
+			decayPeaks(&m.vizPeaks, m.vizBands)
+			if m.st.Playing && !m.reducedMotion() {
+				m.orbKickBase, m.orbKick = bassKick(m.orbKickBase, m.orbKick, bassLevel(m.vizBands))
+				m.orbSpin, m.orbWobble = orbAdvance(m.orbSpin, m.orbWobble, m.orbKick)
+			} else {
+				m.orbKick = 0
+			}
+		}
 		if m.captureStatus() == captureLive && m.st.Dur > 0 && m.st.Playing {
 			m.wv.record(float64(m.st.Pos)/float64(m.st.Dur), bandsLevel(m.vizBands))
 		}
-		scrobble := m.advanceScrobble(time.Second / 30)
+		scrobble := m.advanceScrobble(elapsed)
 		cmds := []tea.Cmd{m.commands().tick()}
 		if visualizerClose != nil {
 			cmds = append(cmds, visualizerClose)

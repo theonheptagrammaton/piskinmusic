@@ -167,7 +167,7 @@ unchanged. Deterministic, race, lifecycle, build and actual playback/pause/resum
 capture/UI checks passed; see phase 4 in TESTING.md. Existing fallback tests were
 intentionally updated and extended, not removed.
 
-### 5 — Resource use, platform validation, release
+### 5 — Resource use, platform validation, release (implementation complete; native gates open)
 
 Measure the current and new implementations on the same target. Cache static
 artwork/layout output, bound waveform storage, suppress hidden-screen rendering,
@@ -181,11 +181,16 @@ capture status. Push completed commits only to a verified development branch.
 
 ## Current change scope
 
-Phases 0–4 are complete. Phase 4 adds real PCM waveform snapshots and rendering,
-truthful capture states and an explicit demo compatibility option. Existing
-spectrum/shape mathematics, track loudness timeline, mode names, playback and
-persisted configuration remain compatible except for the intentional default:
-failed capture is quietly unavailable instead of automatically simulated.
-No dependency, installer, desktop configuration or DRM change was added.
-Resource measurements, native macOS/Windows runtime validation and release work
-remain phase 5. This phase is committed separately; no push is requested.
+Phases 0–4 are complete. Phase 5 adds bounded artwork/geometry/header caching,
+adaptive elapsed-time UI ticks, reduced motion, hidden rendering suppression,
+same-target performance evidence, PTY acceptance, license notices and development
+packaging. Capture/history remain independent of visibility and waveform storage
+retains its fixed bounds. No dependencies, installers, desktop configuration or
+DRM changed. Compatibility and migration notes are in docs/RELEASE_NOTES.md.
+
+Linux checks and measurements are recorded in TESTING.md. Native permissioned
+macOS capture and native Windows runtime gates must remain explicit; cross-builds
+and silent Linux capture do not satisfy them. Development CI adds native macOS
+verification/packaging and retains Windows checks. The current instruction
+authorizes completed commits to the verified user-owned fork's development
+branch, `development/performance`; `main` and upstream are not push targets.

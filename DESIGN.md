@@ -9,7 +9,8 @@ A native terminal music instrument: fast navigation, readable metadata, precise
 focus, generous empty space where dimensions permit. Use terminal cells and
 normal list interactions rather than web-style cards, decorative dashboards or
 large ASCII branding. The monochrome shell, four screens, PCM waveform and
-explicit demo policy are implemented. Resource optimization remains a later phase.
+explicit demo policy are implemented. Resource optimization now adds bounded
+artwork caching, cached layout/header output, adaptive cadence and reduced motion.
 
 The shell uses black and white. Neutral grayscale may express subdued text,
 separators and depth, with no chromatic accents. Album artwork keeps its original

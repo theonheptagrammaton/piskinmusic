@@ -165,7 +165,7 @@ func (m model) renderRecentPanel(w, h int, gridLayout recentGridLayout) string {
 		tr := m.recent[i]
 		cover := placeholderTile(artCols, artRows)
 		if img := m.tileArt[tr.ID]; img != nil && configBool(m.cfg, "artwork.enabled", true) {
-			cover = renderArtwork(img, artCols, artRows)
+			cover = m.artworkRows(img, artCols, artRows)
 		}
 		for r := 0; r < artRows; r++ {
 			line := ""
@@ -294,7 +294,7 @@ func bassLevel(bands [32]float64) float64 {
 
 // pulseAmount is the current bass energy, or 0 when the pulse is switched off.
 func (m model) pulseAmount() float64 {
-	if !configBool(m.cfg, "visualizer.pulse", true) || !m.st.Playing {
+	if m.reducedMotion() || m.blurred || !configBool(m.cfg, "visualizer.pulse", true) || !m.st.Playing {
 		return 0
 	}
 	return bassLevel(m.vizBands)
@@ -433,7 +433,7 @@ func (m model) lyricsPanel(w, h int) string {
 	if artCols == 0 {
 		return text
 	}
-	cover := renderArtwork(m.art, artCols, artRows)
+	cover := m.artworkRows(m.art, artCols, artRows)
 	lines := strings.Split(text, "\n")
 	top := (rows - artRows) / 2
 	var b strings.Builder
@@ -674,6 +674,9 @@ func (m model) bootView() string {
 }
 
 func (m model) View() string {
+	if m.blurred && m.renderCache != nil && m.renderCache.lastFrame != "" {
+		return m.renderCache.lastFrame
+	}
 	if m.w <= 0 || m.h <= 0 {
 		return ""
 	}
@@ -724,7 +727,11 @@ func (m model) View() string {
 		transport := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(map[bool]lipgloss.Color{true: m.pulsedAccent(), false: borderDim}[m.focus == focusPlayer]).Width(lay.transport.w).Render(m.renderTransportPanel(lay.transport.w, lay.progress.w))
 		frame = m.header(lay) + "\n" + top + "\n" + transport
 	}
-	return lipgloss.NewStyle().Background(background).Foreground(fgBright).Render(fitBlock(frame, m.w, m.h))
+	frame = lipgloss.NewStyle().Background(background).Foreground(fgBright).Render(fitBlock(frame, m.w, m.h))
+	if m.renderCache != nil {
+		m.renderCache.lastFrame = frame
+	}
+	return frame
 }
 
 func (m model) visualizerTitle() string {

@@ -49,7 +49,7 @@ func main() {
 	applyTheme(t)
 	// Cell motion rather than all motion: the app only reacts to clicks and the
 	// wheel, and all-motion floods the loop with a message per pointer move.
-	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithReportFocus())
 	if _, err := p.Run(); err != nil {
 		if runtime.GOOS == "windows" {
 			log.Fatalf("%v (amtui needs a Windows console — run it in Windows Terminal or PowerShell; from Git Bash/mintty: winpty amtui)", err)

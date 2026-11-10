@@ -629,6 +629,12 @@ func TestCoreAudioLiveSmoke(t *testing.T) {
 		}
 	}
 
+	if total == 0 {
+		t.Fatal("CoreAudio tap returned no PCM; an opened tap alone does not verify capture")
+	}
+	if os.Getenv("AMTUI_TEST_COREAUDIO_REQUIRE_SIGNAL") == "1" && !nonZero {
+		t.Fatal("CoreAudio tap returned silence; controlled playback requires nonzero PCM")
+	}
 	if nonZero {
 		t.Logf("CoreAudio tap captured %d samples with a non-zero signal", total)
 	} else {
@@ -637,6 +643,39 @@ func TestCoreAudioLiveSmoke(t *testing.T) {
 			total,
 		)
 	}
+}
+
+func TestCoreAudioLiveServicePCM(t *testing.T) {
+	if os.Getenv("AMTUI_TEST_COREAUDIO") != "1" {
+		t.Skip("set AMTUI_TEST_COREAUDIO=1 to exercise the live CoreAudio service")
+	}
+	source, err := OpenSystemSource()
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(source)
+	if err != nil {
+		_ = source.Close()
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = service.Close() })
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := service.Err(); err != nil {
+			t.Fatal(err)
+		}
+		if frame, ok := service.Latest(); ok && frame.TotalFrames > 0 && frame.Waveform.Count > 0 {
+			if !frame.Live || frame.Source != "COREAUDIO" || frame.Format != source.Format() || time.Since(frame.At) > 400*time.Millisecond {
+				t.Fatal("invalid or stale native service frame")
+			}
+			if os.Getenv("AMTUI_TEST_COREAUDIO_REQUIRE_SIGNAL") != "1" || frame.Waveform.Peak != [2]float64{} {
+				t.Logf("CoreAudio service format=%v frames=%d window=%d points=%d peak=%v RMS=%v", frame.Format, frame.TotalFrames, frame.Waveform.Frames, frame.Waveform.Count, frame.Waveform.Peak, frame.Waveform.RMS)
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("no qualifying native PCM service frame within 2s")
 }
 
 func nativeConversionInput(

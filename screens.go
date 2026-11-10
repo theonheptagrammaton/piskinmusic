@@ -189,12 +189,16 @@ func (m model) focusPanel(w, h int) string {
 	if !configBool(m.cfg, "artwork.enabled", true) || m.art == nil || cols < artworkMinCols || rows < 8 {
 		return m.metadata(w, rows)
 	}
-	art := strings.Join(renderArtwork(m.art, cols, cols/2), "\n")
+	art := strings.Join(m.artworkRows(m.art, cols, cols/2), "\n")
 	left := fitBlock(art, cols, rows)
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", artworkGap), m.metadata(w-cols-artworkGap, rows))
 }
 
 func (m model) header(l layout) string {
+	key := headerKey{m.w, m.screen, fgBright, fgDim, selectedText, selBg, lipgloss.ColorProfile()}
+	if m.renderCache != nil && m.renderCache.header != "" && m.renderCache.headerKey == key {
+		return m.renderCache.header
+	}
 	brand := lipgloss.NewStyle().Foreground(fgBright).Bold(true).Render("PISKIN MUSIC")
 	top := pad(brand, m.w)
 	if len(l.actions) > 0 {
@@ -213,7 +217,11 @@ func (m model) header(l layout) string {
 		}
 		nav += label + " "
 	}
-	return pad(top, m.w) + "\n" + pad(nav, m.w)
+	result := pad(top, m.w) + "\n" + pad(nav, m.w)
+	if m.renderCache != nil {
+		m.renderCache.header, m.renderCache.headerKey = result, key
+	}
+	return result
 }
 
 // fitBlock clips ANSI and Unicode by terminal cells. Every frame has bounded
