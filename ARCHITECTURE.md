@@ -31,7 +31,7 @@ Root commands also fetch artwork, LRCLIB lyrics and opt-in Last.fm data.
 
 | Area | Files/packages and behavior |
 | --- | --- |
-| App state, commands, layout, views | `main.go` contains Bubble Tea Init/Update/View, async command wrappers, loading/reconnect state, queue/recent/lyrics/transport/spectrum rendering and timeline history. |
+| App state, commands, layout, views | `main.go` wires startup; `app_state.go` owns the model, messages and Init/Update; `commands.go` wraps effects and timers; `layout.go` owns shared geometry; `components.go` renders the dashboard and its components. |
 | Support views and input | `mouse.go`, `help.go`, `overlay.go`, `account.go`, `eq.go`, `orb.go`. |
 | Theme/config/art | `theme.go` holds palettes, mutable global tokens, simple TOML-subset parsing and persistence; `artwork.go` downloads/caches and renders images as colored half blocks. |
 | Playback | `engine.Engine` serializes CDP access with a mutex; `State` exposes transport/queue/auth/EQ/error snapshots; JS in `engine/musickit.go` uses the page's MusicKit instance and playback recovery logic. |
@@ -79,6 +79,28 @@ Runtime requirements: a compatible headed Chromium with the official DRM/media
 stack, an Apple Music subscription and network access; pipewire-pulse or
 PulseAudio on Linux; session D-Bus for MPRIS; macOS 14.2+ and cgo for its live
 tap. Linux can build without cgo. A darwin build without cgo lacks live capture.
+
+## Root extraction — phase 2
+
+The root `playback` interface lists only engine operations consumed by root
+commands and desktop controls. Production still uses `*engine.Engine`, with its
+existing snapshot types and lifecycle. A per-model `commandSet` supplies optional
+factories for connection, capture opening, metadata and timers, plus a hook for
+MPRIS publication; nil fields retain production defaults. Playback commands capture their engine and
+request arguments before asynchronous execution. Reconnect closes the old engine
+before executing the replacement connection command.
+
+`captureStatus()` derives starting, live, stale, unavailable or demo from the
+existing service lifecycle flags, avoiding a second stored source of truth.
+Rendering and history eligibility use that status. The existing SIMULATED label
+and automatic simulated fallback after unavailable capture are preserved for this
+phase; the explicit-demo product change remains phase 4 work.
+
+The shared layout contains panel sizes, visible content rectangles, recent tile
+rectangles and progress geometry. View and mouse input consume the same result;
+recent cover sizing has one implementation. Hidden controls, borders, tile gaps
+and blank padding do not activate playback. Frame rendering remains unchanged.
+There are no new packages, dependencies, browser polls or audio reads.
 
 ## Intended boundaries — incremental changes
 

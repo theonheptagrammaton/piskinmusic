@@ -5,22 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-
-	"github.com/k1y0miiii/applemusic-tui/engine"
 )
-
-func accountCmd(eng *engine.Engine) tea.Cmd {
-	return func() tea.Msg {
-		acct, err := eng.Account()
-		return accountMsg{acct: acct, err: err}
-	}
-}
-
-func signOutCmd(eng *engine.Engine) tea.Cmd {
-	return func() tea.Msg {
-		return signedOutMsg{err: eng.SignOut()}
-	}
-}
 
 // updateAccount runs while the account overlay is open. Unlike help, this
 // overlay has an action in it, so a stray key must not fire it — only enter

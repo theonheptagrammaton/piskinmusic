@@ -109,7 +109,7 @@ cover observed startup/disconnect races, canceled polling and truthful capture
 status/history; no DRM or entitlement workaround was added. One catalog item
 returned CONTENT_UNAVAILABLE and is explicitly excluded from playback passes.
 
-### 2 — Separate application state and rendering
+### 2 — Separate application state and rendering (complete)
 
 Incrementally extract root model responsibilities while preserving the current
 layout and behavior. Introduce a narrow playback interface around existing engine
@@ -121,6 +121,14 @@ these are proposed files, not existing directories. Keep `engine`, `visualizer`,
 
 Exit: unchanged upstream regression suite plus command/failure/resize checks;
 no extra browser polling or audio work. Commit the extraction independently.
+
+Completed as a root-package extraction: playback interface, per-model command
+factories, derived capture status and shared content/tile/progress geometry.
+Existing regression tests remain unchanged. Command/failure/resize tests pass,
+as do race, vet and cgo/nocgo builds. Sixty rendered frames match parent commit
+`e816b69` byte for byte. Mouse hits now exclude hidden controls, borders, gaps
+and padding. See the phase 2 evidence in TESTING.md. No live browser or audio
+verification was repeated for this extraction.
 
 ### 3 — Monochrome shell and four primary screens
 
@@ -165,8 +173,7 @@ capture status. Push completed commits only to a verified development branch.
 
 ## Current change scope
 
-Phases 0 and 1 are complete on the Linux ARM64 target. The original restricted
-session evidence remains historical; current commands, measured playback/capture
-passes and limitations are in TESTING.md. Phase 1 adds opt-in live and isolated
-tests and fixes only observed playback/capture boundaries. Branding, theme and
-major UI development remain pending in phases 2–5.
+Phases 0–2 are complete. The phase 2 extraction preserves the dashboard and
+package boundaries; branding, theme changes, primary screens and PCM waveform
+work remain pending in phases 3–5. Historical playback/capture verification and
+the phase 2 automated checks are recorded separately in TESTING.md.

@@ -13,7 +13,7 @@ import (
 // channel rather than calling os.Exit, so the desktop asking us to quit still
 // runs the same shutdown as pressing q — the browser has to be closed.
 type mprisControls struct {
-	eng  *engine.Engine
+	eng  playback
 	quit chan struct{}
 }
 

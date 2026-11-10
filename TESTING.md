@@ -435,3 +435,47 @@ tracking destination before pushing; use only the configured development branch.
 The initial missing-metadata blocker was resolved by recovering the fork's
 existing history. Keep the restricted-session results above as historical
 evidence, and verify the remote commit and a clean working tree after pushing.
+
+## Phase 2 — root responsibility extraction — 2026-11-10
+
+Parent: `e816b69` on local `main`, tracking the configured development fork
+`origin/main`. The working tree was clean at entry. The pre-extraction
+`go test ./...` passed across all six packages. This phase changes only root
+application files and documentation; all existing tests and the `engine`,
+`visualizer`, `mpris`, `lyrics` and `lastfm` packages remain unchanged.
+
+Using `/tmp/piskin-toolchain/go/bin/go` (Go 1.26.11, Linux ARM64):
+
+| Check | Result |
+| --- | --- |
+| `go test ./...` | PASS, existing regression suite plus new command/failure/capture-status/resize checks |
+| `go test -race ./...` | PASS, no race reported |
+| `go vet ./...` | PASS |
+| `CGO_ENABLED=1 go build ./...` | PASS |
+| `CGO_ENABLED=0 go build ./...` | PASS |
+| Render comparison against parent `e816b69` | PASS, all 60 SHA-256 frame hashes match |
+| `git diff --check` | PASS |
+
+The temporary render comparison ran the same test probe against an archive of
+the parent and the extracted source: 12 scenes at 70×22, 80×24, 120×35, 200×50
+and 69×35, with a fixed ASCII color profile and animation time. Scenes cover the
+queue, recent grid, search/help/account/EQ overlays, each capture label, boot and
+failure. The probe and archive stayed outside the committed artifacts.
+
+New tests execute root commands against fake playback and per-model command
+factories. They verify deferred calls, captured engine/query identity, action
+and read failures, close-before-connect ordering, failed startup, stale metadata
+identity, one poll per state response, one state read per poll and capture reuse
+on reconnect. Rendering, resize and UI ticks add no playback calls or source
+opens. Capture status distinguishes starting, live silence, stale, unavailable
+and demo while retaining the existing simulated fallback.
+
+Resize checks shrink below and grow above dashboard/grid thresholds, verify
+rendered tile captions against their hit rectangles, retain selection, and move
+focus away from a hidden recent grid. Hidden controls, borders, gaps and blank
+padding are inert. These are the only intentional input corrections; dashboard
+output and visible playback interactions are preserved.
+
+No additional browser polling, playback session, source capture or desktop
+configuration work was performed. Prior target playback/capture evidence remains
+unchanged; native macOS/Windows runtime checks were not repeated.

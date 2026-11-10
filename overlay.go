@@ -23,22 +23,6 @@ func (m model) curList() []engine.Track {
 	return m.sRes.Recent
 }
 
-func (m model) searchCmd() tea.Cmd {
-	eng, term := m.eng, m.sQuery
-	return func() tea.Msg {
-		res, err := eng.Search(term)
-		return searchMsg{res: res, err: err}
-	}
-}
-
-func (m model) libraryCmd() tea.Cmd {
-	eng := m.eng
-	return func() tea.Msg {
-		res, err := eng.Library()
-		return searchMsg{res: res, err: err, keepInput: true}
-	}
-}
-
 func (m model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	eng := m.eng
 	list := m.curList()
@@ -103,10 +87,10 @@ func (m model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if !m.sInput {
 			if m.sSel < len(list) {
 				kind, id := list[m.sSel].Kind, list[m.sSel].ID
-				f := eng.QueueLater
+				f := func(kind, id string) error { return eng.QueueLater(kind, id) }
 				m.note, m.noteAt = "added to queue: "+list[m.sSel].Title, m.t
 				if msg.String() == "A" {
-					f = eng.QueueNext
+					f = func(kind, id string) error { return eng.QueueNext(kind, id) }
 					m.note = "playing next: " + list[m.sSel].Title
 				}
 				return m, doCmd(func() error { return f(kind, id) })
