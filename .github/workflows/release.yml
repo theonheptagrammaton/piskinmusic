@@ -18,7 +18,7 @@ jobs:
   # CoreAudio visualizer and so cannot be cross-compiled from Linux, while the
   # linux and windows targets are pure Go and cross-compile from anywhere.
   release:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 

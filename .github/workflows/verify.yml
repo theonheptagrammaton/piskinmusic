@@ -11,7 +11,11 @@ permissions:
 
 jobs:
   macos:
-    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -27,8 +31,10 @@ jobs:
       - name: Verify native macOS and portable builds
         run: make verify
       - name: Package every release target without publishing
+        if: matrix.runner == 'macos-15'
         run: make dist VERSION="dev-${GITHUB_SHA::7}"
       - uses: actions/upload-artifact@v4
+        if: matrix.runner == 'macos-15'
         with:
           name: amtui-development-packages
           path: dist/

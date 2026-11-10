@@ -803,3 +803,11 @@ cannot establish permissioned live capture. The strengthened macOS live smoke
 tests now fail on zero received PCM and support `REQUIRE_SIGNAL=1`; the new live
 Service check requires a fresh owned PCM envelope. Both remain opt-in, with
 commands in the release notes. Unsupported capture remains honestly unavailable.
+
+The first native CI attempt was cancelled before any steps ran: GitHub rejected
+`macos-14-arm64-us-default` as unsupported. GitHub's
+[runner image inventory](https://github.com/actions/runner-images/blob/main/README.md)
+records macOS 14 retirement on November 2, 2026. Development verification now
+uses the supported `macos-15` and `macos-15-intel` labels for native ARM64/Intel
+checks; release packaging uses `macos-15`. The deployment target remains 14.2.
+The cancelled attempt is not a test pass.
