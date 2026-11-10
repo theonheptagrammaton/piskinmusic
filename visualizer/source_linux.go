@@ -4,6 +4,7 @@ package visualizer
 
 import (
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -26,6 +27,11 @@ func openSystemSource() (Source, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("connect to PulseAudio server: %w", err)
+	}
+	var serverInfo proto.GetServerInfoReply
+	if err := client.RawRequest(&proto.GetServerInfo{}, &serverInfo); err != nil {
+		client.Close()
+		return nil, fmt.Errorf("identify PulseAudio server: %w", err)
 	}
 
 	sink, err := client.DefaultSink()
@@ -68,16 +74,46 @@ func openSystemSource() (Source, error) {
 		monitorDone,
 		client.Close,
 	)
-	source, err := newPCMSource("PIPEWIRE", format, pulseQueueDepth, cleanup.close)
+	source, err := newPCMSource(pulseSourceName(serverInfo.PackageName), format, pulseQueueDepth, cleanup.close)
 	if err != nil {
 		client.Close()
 		return nil, err
 	}
 	target.Store(source)
 
-	stream.Start()
+	// RecordStream.Start mutates unsynchronized library state also written by
+	// its disconnect callback. We own capture lifetime via client.Close and
+	// never use the stream's state helpers; send the same protocol requests
+	// directly, checking failures before publishing a usable source.
+	if err := startPulseRecord(client, stream.StreamIndex()); err != nil {
+		source.fail(err)
+		close(monitorDone) // no server monitor was started
+		_ = source.Close()
+		return nil, fmt.Errorf("start PulseAudio monitor stream: %w", err)
+	}
 	go monitorPulseServer(source, client, monitorDone)
 	return source, nil
+}
+
+type pulseRequester interface {
+	RawRequest(proto.RequestArgs, proto.Reply) error
+}
+
+func startPulseRecord(client pulseRequester, index uint32) error {
+	if err := client.RawRequest(&proto.FlushRecordStream{StreamIndex: index}, nil); err != nil {
+		return err
+	}
+	return client.RawRequest(&proto.CorkRecordStream{StreamIndex: index, Corked: false}, nil)
+}
+
+// Use the server's identity, not the presence of a PulseAudio socket, to claim
+// PipeWire. For other servers the label describes the protocol we actually use.
+func pulseSourceName(serverName string) string {
+	if serverName == "PipeWire" || strings.HasPrefix(serverName, "PipeWire ") ||
+		strings.HasPrefix(serverName, "PulseAudio (on PipeWire ") {
+		return "PIPEWIRE"
+	}
+	return "PULSEAUDIO"
 }
 
 func monitorPulseServer(

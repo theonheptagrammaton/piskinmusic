@@ -42,13 +42,16 @@ Root commands also fetch artwork, LRCLIB lyrics and opt-in Last.fm data.
 
 The UI ticks at 30 Hz and polls playback separately (500 ms). Frames currently
 contain bands, source, Live, and timestamp; no time-domain waveform. The UI
-checks frame freshness at 400 ms but currently zeros targets without clearing
-the LIVE state for a stale frame. Simulated fallback bands also feed timeline
-history. Both behaviors require explicit tests and intentional changes later.
+checks frame freshness at 400 ms. Target verification corrected the capture
+boundary: opening waits for the first fresh frame, stale capture loses LIVE,
+and non-live data cannot feed timeline history. Fresh zero PCM remains live.
+The labeled simulated fallback remains available; it does not record audio history.
 
 The Linux source is system-output capture, not guaranteed Apple-Music-only audio:
 other applications on the selected sink can affect it. It selects the default
-sink when opened; output-device changes need verification and a reopen policy.
+sink when opened; reopening selects the current monitor. Isolated default-sink
+and monitor-removal checks passed (see TESTING.md); automatic following of
+default-device changes and physical hotplug are not claimed.
 
 ## Dependencies
 

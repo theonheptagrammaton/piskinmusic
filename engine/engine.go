@@ -261,6 +261,9 @@ func (e *Engine) updateWindowLifecycleLocked(engineReady, hiddenStall bool) {
 func poll(ctx context.Context, expr string, timeout time.Duration, what string) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("waiting for %s: %w", what, err)
+		}
 		var ok bool
 		tctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		err := chromedp.Run(tctx, chromedp.Evaluate(expr, &ok))
@@ -268,7 +271,11 @@ func poll(ctx context.Context, expr string, timeout time.Duration, what string) 
 		if err == nil && ok {
 			return nil
 		}
-		time.Sleep(700 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("waiting for %s: %w", what, ctx.Err())
+		case <-time.After(min(700*time.Millisecond, time.Until(deadline))):
+		}
 	}
 	return fmt.Errorf("timed out waiting for %s", what)
 }

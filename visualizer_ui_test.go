@@ -95,6 +95,28 @@ func TestSyntheticBarsRenderOnlyAfterVisualizerFallsBack(t *testing.T) {
 	}
 }
 
+// Synthetic status/history checks; these do not prove device capture.
+func TestNonLiveVisualizerDoesNotRecordAudioHistory(t *testing.T) {
+	for _, state := range []struct {
+		name     string
+		opening  bool
+		terminal bool
+	}{
+		{name: "starting", opening: true},
+		{name: "demo"},
+		{name: "unavailable fallback", terminal: true},
+	} {
+		t.Run(state.name, func(t *testing.T) {
+			m := model{phase: phaseReady, t: 1.7, vizOpening: state.opening, vizTerminal: state.terminal,
+				st: engine.State{Playing: true, Pos: time.Minute, Dur: 3 * time.Minute}}
+			next, _ := m.Update(tickMsg(time.Now()))
+			if next.(model).wv != m.wv {
+				t.Fatal("non-live visualization recorded invented audio history")
+			}
+		})
+	}
+}
+
 func TestLiveBarHeightsIncludeEverySpectrumBandAtNarrowWidth(t *testing.T) {
 	const bars = 8
 	for band := range 32 {
@@ -112,6 +134,9 @@ func TestLiveBarHeightsIncludeEverySpectrumBandAtNarrowWidth(t *testing.T) {
 }
 
 func TestReadyStartsVisualizerOpenAlongsideInitialStateFetch(t *testing.T) {
+	// This test counts capture/startup commands, independently of whether the
+	// test host offers a desktop bus and therefore an extra MPRIS listener.
+	t.Setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path="+t.TempDir()+"/no-session-bus")
 	m := model{}
 
 	next, cmd := m.Update(readyMsg{eng: &engine.Engine{}})
@@ -239,7 +264,7 @@ func TestVisualizerOpenMessageCarriesSourceName(t *testing.T) {
 	}
 }
 
-func TestVisualizerOpenedMarksSilentCaptureLiveImmediately(t *testing.T) {
+func TestVisualizerOpenedWaitsForFirstPCMFrame(t *testing.T) {
 	source := &uiFakeSource{
 		name:   "COREAUDIO",
 		format: visualizer.Format{SampleRate: 48_000, Channels: 1},
@@ -262,13 +287,13 @@ func TestVisualizerOpenedMarksSilentCaptureLiveImmediately(t *testing.T) {
 	if got.vizService != service {
 		t.Fatal("opened visualizer service was not stored")
 	}
-	if got.vizOpening {
-		t.Fatal("successful backend open should end starting state")
+	if !got.vizOpening {
+		t.Fatal("backend open without PCM should remain starting")
 	}
-	if !got.vizLive || got.vizSource != "COREAUDIO" {
+	if got.vizLive || got.vizSource != "COREAUDIO" {
 		t.Fatalf("silent capture live=%v source=%q", got.vizLive, got.vizSource)
 	}
-	if title := got.visualizerTitle(); title != "VISUALIZER · LIVE · COREAUDIO" {
+	if title := got.visualizerTitle(); title != "VISUALIZER · STARTING" {
 		t.Fatalf("visualizerTitle() = %q", title)
 	}
 	if _, ok := service.Latest(); ok {
@@ -418,7 +443,7 @@ func TestTickAppliesLatest32BandsAndLiveMetadata(t *testing.T) {
 	}
 }
 
-func TestTickKeepsSilentServiceLiveWithoutFirstFrame(t *testing.T) {
+func TestTickKeepsSourceStartingWithoutFirstFrame(t *testing.T) {
 	source := &uiFakeSource{
 		name:   "COREAUDIO",
 		format: visualizer.Format{SampleRate: 48_000, Channels: 1},
@@ -441,7 +466,7 @@ func TestTickKeepsSilentServiceLiveWithoutFirstFrame(t *testing.T) {
 	next, cmd := live.Update(tickMsg(time.Now().Add(10 * time.Second)))
 	got := next.(model)
 
-	if got.vizService != service || got.vizOpening || !got.vizLive {
+	if got.vizService != service || !got.vizOpening || got.vizLive {
 		t.Fatalf(
 			"silent service state service=%v opening=%v live=%v",
 			got.vizService,
@@ -502,17 +527,24 @@ func TestStaleFrameZeroesTargetsWithoutClosingService(t *testing.T) {
 	if !nonzero {
 		t.Fatal("fresh frame did not produce nonzero targets")
 	}
+	withFrame.st = engine.State{Playing: true, Pos: time.Minute, Dur: 3 * time.Minute}
 
 	next, cmd := withFrame.Update(tickMsg(frame.At.Add(time.Second)))
 	got := next.(model)
 
-	if got.vizService != service || got.vizOpening || !got.vizLive {
+	if got.wv != withFrame.wv || got.vizBands != [32]float64{} {
+		t.Fatal("stale capture generated bands or changed audio history")
+	}
+	if got.vizService != service || got.vizOpening || got.vizLive {
 		t.Fatalf(
 			"stale frame state service=%v opening=%v live=%v",
 			got.vizService,
 			got.vizOpening,
 			got.vizLive,
 		)
+	}
+	if got.visualizerTitle() != "VISUALIZER · STALE · PIPEWIRE" {
+		t.Fatalf("stale title = %q", got.visualizerTitle())
 	}
 	if got.vizSource != "PIPEWIRE" || got.note != "" || got.vizTerminal {
 		t.Fatalf(
@@ -635,7 +667,7 @@ func TestSilentCaptureTransitionsFromPauseToPlaying(t *testing.T) {
 		visualizerOpenedMsg{service: service, source: "COREAUDIO"},
 	)
 	paused := next.(model)
-	if !paused.vizLive || paused.vizService != service {
+	if paused.vizLive || !paused.vizOpening || paused.vizService != service {
 		t.Fatalf("paused capture live=%v service=%v", paused.vizLive, paused.vizService)
 	}
 	if _, ok := service.Latest(); ok {

@@ -199,6 +199,9 @@ func (m model) visualizerTitle() string {
 	if m.vizOpening {
 		return "VISUALIZER · STARTING"
 	}
+	if m.vizService != nil {
+		return "VISUALIZER · STALE · " + m.vizSource
+	}
 	return "VISUALIZER · SIMULATED"
 }
 
@@ -456,6 +459,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else if frame, ok := service.Latest(); ok {
 				if visualizerFrameStale(now, frame.At) {
 					m.vizTargets = [32]float64{}
+					m.vizLive = false
 				} else {
 					m.vizTargets = frame.Bands
 					m.vizLive = frame.Live
@@ -468,7 +472,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			for i := range m.vizBands {
 				m.vizBands[i] += (m.vizTargets[i] - m.vizBands[i]) * 0.45
 			}
-		} else if !m.vizOpening {
+		} else if !m.vizOpening && m.vizService == nil {
 			m.vizBands = simulatedBands(m.t, m.st.Playing)
 		} else {
 			m.vizBands = [32]float64{}
@@ -476,7 +480,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		decayPeaks(&m.vizPeaks, m.vizBands)
 		m.orbKickBase, m.orbKick = bassKick(m.orbKickBase, m.orbKick, bassLevel(m.vizBands))
 		m.orbSpin, m.orbWobble = orbAdvance(m.orbSpin, m.orbWobble, m.orbKick)
-		if m.st.Dur > 0 && m.st.Playing {
+		if m.vizLive && m.st.Dur > 0 && m.st.Playing {
 			m.wv.record(float64(m.st.Pos)/float64(m.st.Dur), bandsLevel(m.vizBands))
 		}
 		scrobble := m.advanceScrobble(time.Second / 30)
@@ -533,8 +537,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.vizService = msg.service
-		m.vizOpening = false
-		m.vizLive = true
+		// Opening the backend is not evidence of PCM. The first fresh frame
+		// (including real zero-valued silence) ends STARTING on a later tick.
+		m.vizLive = false
 		m.vizSource = msg.source
 	case failMsg:
 		m.phase, m.status = phaseFail, msg.err.Error()

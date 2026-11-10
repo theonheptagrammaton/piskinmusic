@@ -59,11 +59,11 @@ screens. Its timeline waveform records band-derived loudness, not PCM samples.
 | Observation | Consequence / resolution |
 | --- | --- |
 | `uname -sm`: `Linux aarch64` | Correct architecture for target verification; full hardware/session behavior still needs testing. |
-| `go` missing from PATH and usual installation locations | Cannot run tests/builds. Supply Go 1.26+ and module access in the development environment. |
+| `go` initially missing | RESOLVED for this run: official Go 1.26.11 ARM64 toolchain outside the checkout; tests and builds executed. |
 | Chromium `153.0.8010.36 Arch Linux ARM` installed | Browser existence does not prove compatible Widevine, codecs, authorization, or full-track playback. |
-| PulseAudio queries fail; PipeWire connection returns `Operation not permitted` | Session sandbox cannot verify monitor capture or MPRIS. Run checks with access to the user's audio/session sockets. |
+| Audio access denied in the initial restricted session | RESOLVED with unrestricted desktop access: actual PipeWire Go source/service capture passed. |
 | No usable Git metadata in the initial restricted session | RESOLVED: existing fork history recovered; `origin/main` verified as the authorized destination. |
-| Widevine availability/compatibility unknown | ARM64 DRM is a verification risk, not a confirmed impossibility. Test the installed browser's official playback path; do not copy DRM binaries or bypass DRM. |
+| Widevine initially unverified | VERIFIED: full subscription track, attached media keys, audible output and real Go PCM on this host. No DRM changes. |
 
 If official browser playback fails on Linux ARM64, stop UI expansion and record
 the exact media/CDM error and supported recovery options. A macOS playback pass
@@ -71,7 +71,7 @@ is useful but does not satisfy the Linux ARM64 gate.
 
 ## Phases and acceptance gates
 
-### 0 — Baseline and specification (complete; runtime gates blocked)
+### 0 — Baseline and specification (complete; initial runtime limits recorded)
 
 Inspect source, dependencies, license, tests, and workflows. Produce the five
 root documents and record baseline evidence. Remove `DESIGN.md` from .gitignore
@@ -80,10 +80,10 @@ review entry and its exact upstream diff was verified. No application source
 changes in this phase.
 
 Validation: provenance comparison, document/link checks, diff review. Automated
-Go tests remain blocked. The missing-metadata commit blocker is resolved. Suggested
+Go tests were deferred to phase 1. The missing-metadata commit blocker is resolved. Suggested
 commit: `docs: establish PISKIN MUSIC baseline and development gates`.
 
-### 1 — Working playback and live capture (blocked)
+### 1 — Working playback and live capture (complete on target)
 
 Run upstream tests first. Execute the Linux ARM64 subscription playback and
 capture protocols in TESTING.md. Check headed login, special-workspace hiding,
@@ -99,6 +99,15 @@ server identity: Linux currently calls every PulseAudio server `PIPEWIRE`.
 Exit: recorded real playback and Go capture passes on target hardware, baseline
 test results, no unresolved playback blockers. Suggested commit:
 `test: verify Linux ARM64 playback and system audio capture` (only after evidence).
+
+Completed on 2026-11-10: audible subscription playback past two minutes on Linux
+ARM64, real Go PCM/FFT capture correlated with pause/resume, transport/queue/EQ,
+special-workspace placement and reload/reconnect. Baseline and final suites,
+isolated server-loss/default-monitor tests and bounded headed login cancellation
+are recorded in [TESTING.md](TESTING.md#target-verification--2026-11-10). Fixes
+cover observed startup/disconnect races, canceled polling and truthful capture
+status/history; no DRM or entitlement workaround was added. One catalog item
+returned CONTENT_UNAVAILABLE and is explicitly excluded from playback passes.
 
 ### 2 — Separate application state and rendering
 
@@ -156,6 +165,8 @@ capture status. Push completed commits only to a verified development branch.
 
 ## Current change scope
 
-Only planning documents and one ignore-rule removal are implemented. No playback,
-capture, branding, theme, or UI behavior has changed. Remaining phases are pending,
-and no successful automated tests, live capture, or playback are claimed.
+Phases 0 and 1 are complete on the Linux ARM64 target. The original restricted
+session evidence remains historical; current commands, measured playback/capture
+passes and limitations are in TESTING.md. Phase 1 adds opt-in live and isolated
+tests and fixes only observed playback/capture boundaries. Branding, theme and
+major UI development remain pending in phases 2–5.
