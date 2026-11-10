@@ -237,12 +237,12 @@ func decayPeaks(peaks *[32]float64, bands [32]float64) {
 	}
 }
 
-// waveBuckets is the resolution of the recorded waveform. Wider than any
+// waveBuckets is the resolution of the recorded loudness timeline. Wider than any
 // realistic progress bar, so a resize never loses detail.
 const waveBuckets = 240
 
-// wave records the audio level at each point of the track as it plays, so the
-// progress bar can show the shape of what was already heard.
+// wave records band-derived loudness along the track for the progress bar.
+// This timeline is independent of the time-domain PCM envelope.
 type wave struct {
 	samples [waveBuckets]float64
 }
@@ -302,8 +302,7 @@ func (m model) pulseAmount() float64 {
 
 func (m model) pulsedAccent() lipgloss.Color { return pulse(accent, m.pulseAmount()) }
 
-// simulatedBands is the fallback animation, moved out of vizPanel so the peak
-// markers and the waveform see the same values in live and simulated modes.
+// simulatedBands is the explicit compatibility demo animation. It is never PCM.
 func simulatedBands(t float64, playing bool) [32]float64 {
 	var bands [32]float64
 	for i := range bands {
@@ -363,7 +362,23 @@ func barCellAt(height, level, peak float64, hasPeak bool) (kind barCellKind, gly
 }
 
 func (m model) vizPanel(w, h int) string {
+	if w <= 0 || h <= 0 {
+		return ""
+	}
+	switch m.captureStatus() {
+	case captureStarting:
+		return fitBlock("Waiting for system audio PCM…", w, h)
+	case captureStale:
+		return fitBlock("System audio capture is stale", w, h)
+	case captureUnavailable:
+		return fitBlock("System audio capture unavailable", w, h)
+	}
 	switch m.vizMode {
+	case vizWaveform:
+		if m.captureStatus() == captureDemo {
+			return fitBlock("PCM unavailable in demo", w, h)
+		}
+		return pcmPanel(m.vizPCM, w, h)
 	case vizTorus:
 		return orbPanel(w, h-1, m.orbSpin, m.orbWobble, m.vizBands)
 	case vizSphere:
@@ -619,8 +634,8 @@ func (m model) renderTransportPanel(w, barW int) string {
 	return pad(line1, w) + "\n" + pad(line2, w)
 }
 
-// progressBar draws the played part of the track as the recorded waveform and
-// the rest as a flat rule. Falls back to a plain filled bar when the waveform
+// progressBar draws the played part as recorded band-derived loudness and
+// the rest as a flat rule. Falls back to a plain filled bar when the timeline
 // is disabled in the config.
 func (m model) progressBar(barW, filled int) string {
 	rest := lipgloss.NewStyle().Foreground(borderDim).
@@ -720,7 +735,9 @@ func (m model) visualizerTitle() string {
 		return "VISUALIZER · STARTING"
 	case captureStale:
 		return "VISUALIZER · STALE · " + m.vizSource
+	case captureDemo:
+		return "VISUALIZER · DEMO · SIMULATED"
 	default:
-		return "VISUALIZER · SIMULATED"
+		return "VISUALIZER · UNAVAILABLE"
 	}
 }

@@ -89,6 +89,10 @@ func (s *Service) run() {
 	defer s.closeSource()
 
 	buffer := make([]float32, windowFrames*s.format.Channels)
+	var pcm pcmWindow
+	// Source reads may split an interleaved channel frame. Retain at most
+	// Channels-1 samples until the next read; Analyzer still sees whole frames.
+	pending := 0
 	var noProgressTimer *time.Timer
 	defer func() {
 		if noProgressTimer != nil {
@@ -99,33 +103,43 @@ func (s *Service) run() {
 		if s.ctx.Err() != nil {
 			return
 		}
-		n, readErr := s.source.Read(s.ctx, buffer)
+		dst := buffer[pending:]
+		n, readErr := s.source.Read(s.ctx, dst)
+		readAt := time.Now()
 		if s.ctx.Err() != nil {
 			return
 		}
-		if n < 0 || n > len(buffer) {
+		if n < 0 || n > len(dst) {
 			s.setTerminalError(fmt.Errorf(
 				"visualizer: source %q returned invalid sample count %d for buffer length %d",
 				s.sourceName,
 				n,
-				len(buffer),
+				len(dst),
 			))
 			return
 		}
 
-		if n > 0 {
-			bands, err := s.analyzer.Process(buffer[:n])
+		available := pending + n
+		complete := available - available%s.format.Channels
+		if n > 0 && complete > 0 {
+			bands, err := s.analyzer.Process(buffer[:complete])
 			if err != nil {
 				s.setTerminalError(fmt.Errorf("visualizer: source %q: %w", s.sourceName, err))
 				return
 			}
+			pcm.append(buffer[:complete], s.format.Channels)
 			s.latest.Store(&Frame{
-				Bands:  bands,
-				Source: s.sourceName,
-				Live:   true,
-				At:     time.Now(),
+				Bands:       bands,
+				Waveform:    pcm.snapshot(s.format.Channels),
+				Format:      s.format,
+				TotalFrames: pcm.total,
+				Source:      s.sourceName,
+				Live:        true,
+				At:          readAt,
 			})
 		}
+		copy(buffer, buffer[complete:available])
+		pending = available - complete
 
 		if readErr != nil {
 			if s.ctx.Err() == nil {

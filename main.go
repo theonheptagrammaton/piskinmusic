@@ -11,10 +11,9 @@ import (
 )
 
 const (
-	audioInitializingText     = "initializing Apple Music audio…"
-	audioInitializingWarning  = "Apple Music is still initializing · R reload"
-	visualizerUnavailableNote = "visualizer unavailable · simulated"
-	visualizerFrameFreshness  = 400 * time.Millisecond
+	audioInitializingText    = "initializing Apple Music audio…"
+	audioInitializingWarning = "Apple Music is still initializing · R reload"
+	visualizerFrameFreshness = 400 * time.Millisecond
 )
 
 func init() { applyTheme(themes[0]) }

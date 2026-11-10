@@ -60,6 +60,8 @@ func TestPulseLiveSmoke(t *testing.T) {
 				frames, changes := 0, 0
 				var previous [32]float64
 				var peakBand float64
+				var pcmPeak, pcmRMS float64
+				var totalFrames uint64
 			loop:
 				for {
 					select {
@@ -79,6 +81,25 @@ func TestPulseLiveSmoke(t *testing.T) {
 						age < 0 || age > 400*time.Millisecond || (!last.IsZero() && !frame.At.After(last)) {
 						t.Fatalf("invalid frame metadata: source=%q live=%t at=%s age=%s", frame.Source, frame.Live, frame.At, age)
 					}
+					pcm := frame.Waveform
+					if frame.Format != format || frame.TotalFrames <= totalFrames || pcm.Frames < 1 ||
+						pcm.Frames > windowFrames || pcm.Count != min(WaveformPoints, pcm.Frames) {
+						t.Fatalf("invalid PCM metadata: format=%v total=%d count=%d frames=%d", frame.Format, frame.TotalFrames, pcm.Count, pcm.Frames)
+					}
+					for ch := 0; ch < format.Channels; ch++ {
+						if math.IsNaN(pcm.RMS[ch]) || math.IsInf(pcm.RMS[ch], 0) ||
+							pcm.RMS[ch] < 0 || pcm.Peak[ch] < pcm.RMS[ch] {
+							t.Fatalf("invalid PCM levels: rms=%v peak=%v", pcm.RMS, pcm.Peak)
+						}
+						pcmRMS, pcmPeak = max(pcmRMS, pcm.RMS[ch]), max(pcmPeak, pcm.Peak[ch])
+						for _, point := range pcm.Points[:pcm.Count] {
+							lo, hi := float64(point.Min[ch]), float64(point.Max[ch])
+							if math.IsNaN(lo) || math.IsNaN(hi) || lo > hi || math.Abs(lo) > pcm.Peak[ch] || math.Abs(hi) > pcm.Peak[ch] {
+								t.Fatalf("invalid PCM envelope: %v", point)
+							}
+						}
+					}
+					totalFrames = frame.TotalFrames
 					for _, band := range frame.Bands {
 						if math.IsNaN(band) || math.IsInf(band, 0) || band < 0 || band > 1 {
 							t.Fatalf("invalid FFT band: %g", band)
@@ -102,11 +123,13 @@ func TestPulseLiveSmoke(t *testing.T) {
 				}
 				t.Logf("frames=%d changing_spectra=%d first=%s last=%s peak_band=%.6g", frames, changes,
 					first.Format(time.RFC3339Nano), last.Format(time.RFC3339Nano), peakBand)
+				t.Logf("PCM envelope: total_frames=%d window_frames=%d points=%d max_rms=%.9g max_peak=%.9g",
+					totalFrames, windowFrames, WaveformPoints, pcmRMS, pcmPeak)
 				if frames < 2 || time.Since(last) > 400*time.Millisecond {
 					t.Error("no sustained fresh service frames")
 				}
-				if os.Getenv("AMTUI_TEST_PULSE_REQUIRE_SIGNAL") == "1" && (peakBand == 0 || changes == 0) {
-					t.Error("expected changing FFT signal during controlled playback")
+				if os.Getenv("AMTUI_TEST_PULSE_REQUIRE_SIGNAL") == "1" && (peakBand == 0 || changes == 0 || pcmRMS <= 1e-6 || pcmPeak == 0) {
+					t.Error("expected PCM envelope and changing FFT signal during controlled playback")
 				}
 			} else {
 				buffer := make([]float32, 8192)

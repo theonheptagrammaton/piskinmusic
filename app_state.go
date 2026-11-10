@@ -148,7 +148,7 @@ type model struct {
 	artFor   string    // track ID the image belongs to
 	artCache *artCache // decoded covers, shared across tracks
 
-	// real spectrum; falls back to fake animation
+	// System capture; generated bands require explicit visualizer.demo opt-in.
 	vizService  *visualizer.Service
 	vizOpening  bool
 	vizLive     bool
@@ -156,13 +156,14 @@ type model struct {
 	vizTerminal bool
 	vizBands    [32]float64 // smoothed, 0..1
 	vizTargets  [32]float64
-	vizPeaks    [32]float64 // peak-hold markers, decay slowly
-	vizMode     int         // vizBars or vizOrb, persisted across runs
-	orbSpin     float64     // torus rotation, accelerated by the beat
-	orbWobble   float64     // torus tilt oscillation
-	orbKick     float64     // 0..1 beat strength, spikes on a bass hit
-	orbKickBase float64     // running average the kick is measured against
-	wv          wave        // recorded loudness across the current track
+	vizPCM      visualizer.Frame // value-owned latest fresh PCM and metadata
+	vizPeaks    [32]float64      // peak-hold markers, decay slowly
+	vizMode     int              // persisted mode ID; existing shape IDs stay compatible
+	orbSpin     float64          // torus rotation, accelerated by the beat
+	orbWobble   float64          // torus tilt oscillation
+	orbKick     float64          // 0..1 beat strength, spikes on a bass hit
+	orbKickBase float64          // running average the kick is measured against
+	wv          wave             // recorded loudness across the current track
 
 	helpOpen bool // the ? overlay; any key dismisses it
 
@@ -198,8 +199,7 @@ type model struct {
 }
 
 // captureStatus gives consumers one explicit state without storing another
-// copy of the service lifecycle flags. Unavailable retains the existing demo
-// fallback, while only live capture may contribute to recorded history.
+// copy of the service lifecycle flags. Only live capture contributes history.
 type captureStatus int
 
 const (
@@ -218,10 +218,10 @@ func (m model) captureStatus() captureStatus {
 		return captureStarting
 	case m.vizService != nil:
 		return captureStale
-	case m.vizTerminal:
-		return captureUnavailable
-	default:
+	case configBool(m.cfg, "visualizer.demo", false):
 		return captureDemo
+	default:
+		return captureUnavailable
 	}
 }
 
@@ -230,11 +230,9 @@ func (m *model) failVisualizer() {
 	m.vizOpening = false
 	m.vizLive = false
 	m.vizSource = ""
-	if !m.vizTerminal {
-		m.vizTerminal = true
-		m.note = visualizerUnavailableNote
-		m.noteAt = m.t
-	}
+	m.vizPCM = visualizer.Frame{}
+	m.vizTargets, m.vizBands, m.vizPeaks = [32]float64{}, [32]float64{}, [32]float64{}
+	m.vizTerminal = true
 }
 
 func (m *model) closeVisualizerAsync() {
@@ -243,6 +241,7 @@ func (m *model) closeVisualizerAsync() {
 	m.vizOpening = false
 	m.vizLive = false
 	m.vizSource = ""
+	m.vizPCM = visualizer.Frame{}
 	closeServiceAsync(service)
 }
 
@@ -294,8 +293,10 @@ func (m model) reconnect(status string) (tea.Model, tea.Cmd) {
 }
 
 func visualizerFrameStale(now, frameAt time.Time) bool {
-	return !now.IsZero() && !frameAt.IsZero() &&
-		now.Sub(frameAt) > visualizerFrameFreshness
+	// A concurrently published frame may be newer than the queued tick. Allow
+	// that small skew, while rejecting invalid or implausibly future times.
+	return frameAt.IsZero() || (!now.IsZero() &&
+		(now.Sub(frameAt) > visualizerFrameFreshness || frameAt.Sub(now) > visualizerFrameFreshness))
 }
 
 func snap(st engine.State) string {
@@ -337,12 +338,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else if frame, ok := service.Latest(); ok {
 				if visualizerFrameStale(now, frame.At) {
 					m.vizTargets = [32]float64{}
+					m.vizPCM = visualizer.Frame{}
 					m.vizLive = false
+					m.vizOpening = false
+					m.vizSource = frame.Source
 				} else {
 					m.vizTargets = frame.Bands
+					m.vizPCM = frame
 					m.vizLive = frame.Live
 					m.vizSource = frame.Source
 					m.vizOpening = false
+					m.vizTerminal = false
 				}
 			}
 		}
@@ -351,10 +357,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			for i := range m.vizBands {
 				m.vizBands[i] += (m.vizTargets[i] - m.vizBands[i]) * 0.45
 			}
-		case captureDemo, captureUnavailable:
+		case captureDemo:
 			m.vizBands = simulatedBands(m.t, m.st.Playing)
 		default:
 			m.vizBands = [32]float64{}
+			m.vizPeaks = [32]float64{}
 		}
 		decayPeaks(&m.vizPeaks, m.vizBands)
 		m.orbKickBase, m.orbKick = bassKick(m.orbKickBase, m.orbKick, bassLevel(m.vizBands))
@@ -417,6 +424,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.vizService = msg.service
+		m.vizPCM = visualizer.Frame{}
+		m.vizTargets, m.vizBands, m.vizPeaks = [32]float64{}, [32]float64{}, [32]float64{}
+		m.vizTerminal = false
 		// Opening the backend is not evidence of PCM. The first fresh frame
 		// (including real zero-valued silence) ends STARTING on a later tick.
 		m.vizLive = false

@@ -46,10 +46,10 @@ which changes what is possible:
   playlists and singles as half-block artwork, arrow keys to pick, `↵` to play.
 - **Live visualizer** — what is actually playing: system-audio PCM through a
   4096-sample Hann-window FFT into 32 bands (denser at low frequencies), 30 fps.
-  CoreAudio process tap on macOS, PipeWire/PulseAudio monitor on Linux. Falls
-  back to a clearly labeled simulated animation when live capture is
-  unavailable. Three looks, cycled with `v`: Winamp-style **bars**, a spinning
-  **torus** whose tube corrugates with the spectrum, and a wireframe **sphere**
+  CoreAudio process tap on macOS, PipeWire/PulseAudio monitor on Linux. Capture
+  failure shows a quiet unavailable panel; the labeled compatibility demo is
+  opt-in. Four modes, cycled with `v`: a real **PCM waveform**, Winamp-style
+  **bars**, a spinning **torus** whose tube corrugates with the spectrum, and a wireframe **sphere**
   that turns slowly and pumps with the bass.
 - **Synced lyrics** — timestamped lines from [LRCLIB](https://lrclib.net),
   no API keys, with the album cover rendered beside them in half-block color.
@@ -61,7 +61,7 @@ which changes what is possible:
 - **Themes** — six built-in palettes cycled with `t`, overridable per color in
   a config file, plus an `auto` mode that pulls the accent from the artwork.
 - **Transport** — play/pause, next/prev, seek, volume, shuffle, repeat, and a
-  progress bar drawn as the waveform of what you have already heard.
+  progress bar showing recorded band-derived loudness along the track (not PCM).
 - **10-band equalizer** — real Web Audio filters on the playback chain, `Q` to
   swap the visualizer for it, presets cycled with `P`, gains persisted across
   runs.
@@ -108,9 +108,9 @@ through the system mixer (the web player serves AAC 256; no lossless).
 > compositors may leave the window visible for now.
 
 > Windows is now built and tested in CI, but there is still no system-audio
-> capture backend, so the visualizer always runs in its labeled simulated
-> mode. Use Windows Terminal — the legacy console does not render the TUI
-> correctly. From Git Bash, run it with `winpty amtui`.
+> capture backend, so the visualizer shows UNAVAILABLE by default. Set
+> `visualizer.demo = true` for the legacy simulated animation. Use Windows
+> Terminal — the legacy console does not render the TUI correctly. From Git Bash, run it with `winpty amtui`.
 
 ## Install
 
@@ -156,7 +156,8 @@ On macOS the live visualizer needs the Xcode Command Line Tools
 (`xcode-select --install`) — the installer checks for them.
 
 Prefer doing it by hand? `go build -o amtui .` works too; a `CGO_ENABLED=0`
-build runs the visualizer in simulated mode instead of capturing real audio.
+macOS build has no live capture and shows UNAVAILABLE. Linux capture is pure Go
+and works without cgo. The legacy demo remains an explicit opt-in on all platforms.
 
 Run the test suite with `make test`, or `make verify` for the full check.
 
@@ -208,7 +209,7 @@ required.
 | `?` | Show keys; arrows/page keys change help page, other keys close |
 | `Q` | Open / close EQ; arrows change band/gain, `P` presets, `0` flat |
 | `a` | Account; `Enter` signs out, other keys close |
-| `v` | Cycle visualizer: bars → torus → sphere |
+| `v` | Cycle visualizer: bars → torus → sphere → waveform |
 | `t` | Cycle color theme |
 | `R` | Reload the web player if it wedges |
 | `/` | Open search |
@@ -246,14 +247,38 @@ Screen changes preserve playback, selections, search results and per-screen focu
 
 ## Visualizer
 
-Press `v` to cycle three shapes; the choice is remembered in
+Press `v` to cycle four modes; the choice is remembered in
 `~/.config/amtui/vizmode`.
 
 | Mode | What it draws |
 | --- | --- |
+| `waveform` | Signed PCM min/max envelope of the latest 4096 frames (85.3 ms at 48 kHz), with separate L/R traces, sample rate, channel count and window duration. |
 | `bars` | 32-band spectrum with peak-hold markers. The default. |
 | `torus` | A spinning donut. Its tube thickness at each angle comes from the band that owns that slice of the ring, so the shape corrugates with the spectrum. |
 | `sphere` | A wireframe globe of latitude rings and meridians, shaded by depth. Frequency maps to latitude symmetrically, so the bass swells its waist. |
+
+LIVE means fresh PCM received within 400 ms, including silence. STARTING waits
+for the first frame; STALE clears traces until fresh data arrives. Terminal
+capture errors show UNAVAILABLE quietly. PIPEWIRE/PULSEAUDIO/COREAUDIO identifies
+the capture backend; this is system output, so other applications can contribute.
+Freshness is measured from local read completion, not a hardware timestamp.
+The waveform preserves per-channel extrema, including impulses and anti-phase
+stereo; it clips only the display at full scale. The transport's loudness timeline
+continues to use FFT bands and is separate from this PCM mode.
+
+To restore the old simulated fallback, explicitly set this in
+`~/.config/amtui/config.toml`:
+
+```toml
+[visualizer]
+demo = true
+```
+
+This enables DEMO · SIMULATED only when capture is unavailable. Starting/stale
+capture stays quiet, live capture takes priority, and demo never records history
+or manufactures a PCM trace. Omitted, false, or invalid values keep demo off.
+Existing bars/torus/sphere mode names (and the old `orb` alias) remain compatible;
+waveform is persisted as `waveform`.
 
 The two 3D shapes answer the beat differently. The torus answers with motion: a
 bass kick speeds its spin up. The sphere answers with size — it turns at about a
@@ -328,7 +353,7 @@ appearance monochrome. To customize colors, select a named legacy palette.
 To pick a theme up front or override legacy colors, copy
 [`docs/config.example.toml`](docs/config.example.toml) to
 `~/.config/amtui/config.toml`. The same file switches the peak markers, the bass
-pulse, the waveform progress bar and the album art on or off.
+pulse, the loudness timeline and the album art on or off, and opts into demo.
 
 ## Configuration
 

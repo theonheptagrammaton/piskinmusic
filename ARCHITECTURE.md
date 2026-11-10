@@ -40,18 +40,48 @@ Root commands also fetch artwork, LRCLIB lyrics and opt-in Last.fm data.
 | Analysis | 4096-frame Hann FFT, 32 frequency bands, stereo power handling, attack/release smoothing. The service owns its goroutine, analyzer, cancellation and latest atomic snapshot. |
 | Integration | `mpris` depends on a small Controls interface, not the UI; `desktop.go` adapts the engine. `lyrics` calls LRCLIB; `lastfm` handles optional authentication/scrobbling, with listening-time accounting in `scrobble.go`. |
 
-The UI ticks at 30 Hz and polls playback separately (500 ms). Frames currently
-contain bands, source, Live, and timestamp; no time-domain waveform. The UI
-checks frame freshness at 400 ms. Target verification corrected the capture
-boundary: opening waits for the first fresh frame, stale capture loses LIVE,
-and non-live data cannot feed timeline history. Fresh zero PCM remains live.
-The labeled simulated fallback remains available; it does not record audio history.
+The UI ticks at 30 Hz and polls playback separately (500 ms). Frames contain
+bands, a fixed-size PCM envelope, negotiated format, total complete frames read,
+source, Live, and local read-completion timestamp. The UI checks freshness at
+400 ms: opening waits for the first fresh PCM frame, stale capture clears its
+traces, and fresh silence remains live. Terminal errors invalidate capture
+immediately and show a quiet unavailable panel. Only explicit
+`visualizer.demo = true` enables the legacy simulated bands when capture is
+unavailable; demo never supplies PCM or timeline history.
 
 The Linux source is system-output capture, not guaranteed Apple-Music-only audio:
 other applications on the selected sink can affect it. It selects the default
 sink when opened; reopening selects the current monitor. Isolated default-sink
 and monitor-removal checks passed (see TESTING.md); automatic following of
 default-device changes and physical hotplug are not claimed.
+
+## PCM snapshots — phase 4
+
+`Service.run` validates PCM through the unchanged Analyzer, then accumulates it
+in its own fixed 4096-frame stereo ring before reusing the read buffer. Reads
+that split stereo frames retain at most one sample for the next read. The FFT
+still receives whole frames, with its original Hann window, band mapping,
+stereo power handling and attack/release math. Torus/sphere geometry is unchanged.
+
+Every published `Frame` owns a `Waveform` value: up to 128 chronological min/max
+points per channel, per-channel RMS/absolute peak, and the number of actual PCM
+frames covered. Startup windows contain only received samples. For point i,
+the frame range is `[i*Frames/Count, (i+1)*Frames/Count)`; the complete window is
+the latest 4096 received frames, about 85.3 ms at 48 kHz. Channels stay separate
+so anti-phase audio cannot disappear through downmixing. Signed source amplitude
+is retained; only display coordinates clip at full scale. There are no shared
+slices in the envelope, and `Latest` returns a value copy. `TotalFrames` counts
+received complete frames, not dropped source chunks or elapsed hardware time.
+
+The persisted `waveform` mode renders this envelope with separate L/R traces
+and system-output/format/window metadata. Narrow columns merge extrema rather
+than dropping impulses. Existing shape IDs, mode names and the `orb` alias remain
+compatible. The transport's `wave` structure remains a band-derived loudness
+timeline along the track; it is not PCM. Starting/stale/unavailable states clear
+PCM and peaks, while fresh frames restore the current source and metadata. View does no capture,
+analysis, playback calls or wall-clock reads. Freshness uses receipt time, not a
+hardware sample-clock timestamp; a backend label does not attribute sound to a
+particular player.
 
 ## Dependencies
 

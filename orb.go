@@ -30,6 +30,7 @@ const (
 	vizBars = iota
 	vizTorus
 	vizSphere
+	vizWaveform
 	vizModes
 )
 
@@ -331,7 +332,7 @@ func vizModeFile() string {
 	return filepath.Join(d, "vizmode")
 }
 
-var vizModeNames = [vizModes]string{"bars", "torus", "sphere"}
+var vizModeNames = [vizModes]string{"bars", "torus", "sphere", "waveform"}
 
 func loadVizMode() int {
 	p := vizModeFile()

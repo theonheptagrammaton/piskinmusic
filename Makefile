@@ -33,7 +33,7 @@ dist-clean:
 # dist builds every release target into $(DIST) and writes SHA256SUMS.
 #
 # darwin needs CGO_ENABLED=1 so the visualizer keeps its CoreAudio process tap;
-# without cgo the macOS build silently degrades to the simulated animation. That
+# without cgo the macOS build has no capture (demo requires explicit opt-in). That
 # makes macOS the only host that can produce a complete release — linux and
 # windows are pure Go and cross-compile from anywhere, so one macOS runner
 # covers the whole matrix.

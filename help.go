@@ -67,7 +67,7 @@ var helpSections = []helpSection{
 		{"a / A", "queue end / next"},
 	}},
 	{"LOOK", []helpEntry{
-		{"v", "bars/torus/sphere"},
+		{"v", "cycle visualizer"},
 		{"t", "cycle theme"},
 		{"Q", "equalizer"},
 		{"P / 0", "EQ preset / reset"},

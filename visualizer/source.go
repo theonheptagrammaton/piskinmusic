@@ -19,15 +19,20 @@ type Format struct {
 type Source interface {
 	Name() string
 	Format() Format
+	// Read returns an interleaved float32 sample count, which may split a
+	// channel frame. Service retains the partial frame across reads.
 	Read(context.Context, []float32) (int, error)
 	Close() error
 }
 
 type Frame struct {
-	Bands  [32]float64
-	Source string
-	Live   bool
-	At     time.Time
+	Bands       [32]float64
+	Waveform    Waveform
+	Format      Format
+	TotalFrames uint64 // complete PCM frames received since this service opened
+	Source      string // system output, not attribution to a particular player
+	Live        bool
+	At          time.Time // local read completion, not a hardware capture timestamp
 }
 
 func OpenSystemSource() (Source, error) {

@@ -38,9 +38,14 @@ func TestVisualizerTitleReflectsCaptureState(t *testing.T) {
 			want: "VISUALIZER · LIVE · PIPEWIRE",
 		},
 		{
-			name: "simulated",
+			name: "default unavailable",
 			m:    model{},
-			want: "VISUALIZER · SIMULATED",
+			want: "VISUALIZER · UNAVAILABLE",
+		},
+		{
+			name: "explicit demo",
+			m:    model{cfg: map[string]string{"visualizer.demo": "true"}},
+			want: "VISUALIZER · DEMO · SIMULATED",
 		},
 	}
 
@@ -69,9 +74,9 @@ func TestViewRendersVisualizerStateLabel(t *testing.T) {
 	}
 }
 
-func TestSyntheticBarsRenderOnlyAfterVisualizerFallsBack(t *testing.T) {
+func TestSyntheticBarsRequireExplicitDemo(t *testing.T) {
 	// The simulated animation lives in the model and is advanced by the tick,
-	// so drive both cases through Update rather than calling vizPanel cold.
+	// so drive the cases through Update rather than calling vizPanel cold.
 	advance := func(m model) model {
 		next, _ := m.Update(tickMsg(time.Now()))
 		return next.(model)
@@ -86,13 +91,20 @@ func TestSyntheticBarsRenderOnlyAfterVisualizerFallsBack(t *testing.T) {
 		t.Fatalf("starting visualizer rendered simulated bars:\n%s", got)
 	}
 
+	unavailable := advance(model{t: 1.7, vizTerminal: true, st: engine.State{Playing: true}})
+	if got := unavailable.vizPanel(60, 10); strings.ContainsAny(got, "▁▂▃▄▅▆▇█") || unavailable.vizBands != [32]float64{} {
+		t.Fatalf("default unavailable capture animated: %s", got)
+	}
+
 	simulated := advance(model{
-		t:          1.7,
-		st:         engine.State{Playing: true},
-		vizOpening: false,
+		cfg:         map[string]string{"visualizer.demo": "true"},
+		vizTerminal: true,
+		t:           1.7,
+		st:          engine.State{Playing: true},
+		vizOpening:  false,
 	})
 	if got := simulated.vizPanel(60, 10); !strings.ContainsAny(got, "▁▂▃▄▅▆▇█") {
-		t.Fatalf("fallback visualizer did not render simulated bars:\n%s", got)
+		t.Fatalf("explicit demo did not render simulated bars:\n%s", got)
 	}
 }
 
@@ -105,11 +117,14 @@ func TestNonLiveVisualizerDoesNotRecordAudioHistory(t *testing.T) {
 	}{
 		{name: "starting", opening: true},
 		{name: "demo"},
-		{name: "unavailable fallback", terminal: true},
+		{name: "unavailable", terminal: true},
 	} {
 		t.Run(state.name, func(t *testing.T) {
 			m := model{phase: phaseReady, t: 1.7, vizOpening: state.opening, vizTerminal: state.terminal,
 				st: engine.State{Playing: true, Pos: time.Minute, Dur: 3 * time.Minute}}
+			if state.name == "demo" {
+				m.cfg = map[string]string{"visualizer.demo": "true"}
+			}
 			next, _ := m.Update(tickMsg(time.Now()))
 			if next.(model).wv != m.wv {
 				t.Fatal("non-live visualization recorded invented audio history")
@@ -521,6 +536,9 @@ func TestStaleFrameZeroesTargetsWithoutClosingService(t *testing.T) {
 	live := next.(model)
 	next, _ = live.Update(tickMsg(frame.At))
 	withFrame := next.(model)
+	if withFrame.vizPCM != frame {
+		t.Fatal("fresh PCM snapshot was not copied into the UI")
+	}
 	nonzero := false
 	for _, value := range withFrame.vizTargets {
 		nonzero = nonzero || value > 0
@@ -533,6 +551,9 @@ func TestStaleFrameZeroesTargetsWithoutClosingService(t *testing.T) {
 	next, cmd := withFrame.Update(tickMsg(frame.At.Add(time.Second)))
 	got := next.(model)
 
+	if got.vizPCM != (visualizer.Frame{}) || got.vizPeaks != [32]float64{} {
+		t.Fatal("stale capture retained PCM or peak motion")
+	}
 	if got.wv != withFrame.wv || got.vizBands != [32]float64{} {
 		t.Fatal("stale capture generated bands or changed audio history")
 	}
@@ -609,6 +630,9 @@ func TestFreshFrameAfterStaleSilenceRestoresTargets(t *testing.T) {
 	withFrame := next.(model)
 	next, _ = withFrame.Update(tickMsg(first.At.Add(time.Second)))
 	silent := next.(model)
+	if silent.vizPCM != (visualizer.Frame{}) {
+		t.Fatal("stale capture retained a PCM waveform")
+	}
 	for band, value := range silent.vizTargets {
 		if value != 0 {
 			t.Fatalf("stale target %d = %v, want 0", band, value)
@@ -619,6 +643,9 @@ func TestFreshFrameAfterStaleSilenceRestoresTargets(t *testing.T) {
 	second := waitForVisualizerFrameAfter(t, service, first.At)
 	next, _ = silent.Update(tickMsg(second.At))
 	resumed := next.(model)
+	if resumed.vizPCM != second || resumed.vizPCM.TotalFrames <= first.TotalFrames {
+		t.Fatal("recovery did not publish new PCM and sample metadata")
+	}
 
 	nonzero := false
 	for _, value := range resumed.vizTargets {
@@ -782,7 +809,7 @@ func fillSine(dst []float32, frequency float64) {
 	}
 }
 
-func TestVisualizerOpenErrorFallsBackAndNotifiesOnce(t *testing.T) {
+func TestVisualizerOpenErrorIsQuietlyUnavailable(t *testing.T) {
 	m := model{
 		phase:      phaseReady,
 		t:          10,
@@ -807,10 +834,10 @@ func TestVisualizerOpenErrorFallsBackAndNotifiesOnce(t *testing.T) {
 		)
 	}
 	if !got.vizTerminal {
-		t.Fatal("open error should latch terminal fallback state")
+		t.Fatal("open error should latch terminal unavailable state")
 	}
-	if got.note != "visualizer unavailable · simulated" {
-		t.Fatalf("note = %q, want short simulated fallback note", got.note)
+	if got.note != "" || got.captureStatus() != captureUnavailable {
+		t.Fatalf("capture error should be quietly unavailable: note=%q status=%v", got.note, got.captureStatus())
 	}
 	noteAt := got.noteAt
 
@@ -826,7 +853,7 @@ func TestVisualizerOpenErrorFallsBackAndNotifiesOnce(t *testing.T) {
 	}
 }
 
-func TestTerminalServiceErrorFallsBackClosesAsyncAndNotifiesOnce(t *testing.T) {
+func TestTerminalServiceErrorIsQuietlyUnavailableAndClosesAsync(t *testing.T) {
 	terminalErr := errors.New("audio server disappeared")
 	source := &uiFakeSource{
 		name:   "PIPEWIRE",
@@ -863,10 +890,10 @@ func TestTerminalServiceErrorFallsBackClosesAsyncAndNotifiesOnce(t *testing.T) {
 		)
 	}
 	if !got.vizTerminal {
-		t.Fatal("terminal service error should latch fallback state")
+		t.Fatal("terminal service error should latch unavailable state")
 	}
-	if got.note != visualizerUnavailableNote {
-		t.Fatalf("note = %q, want %q", got.note, visualizerUnavailableNote)
+	if got.note != "" || got.captureStatus() != captureUnavailable {
+		t.Fatalf("terminal error should be quietly unavailable: note=%q status=%v", got.note, got.captureStatus())
 	}
 	noteAt := got.noteAt
 
@@ -883,7 +910,7 @@ func TestTerminalServiceErrorFallsBackClosesAsyncAndNotifiesOnce(t *testing.T) {
 	next, _ = got.Update(tickMsg{})
 	repeated := next.(model)
 	if repeated.noteAt != noteAt {
-		t.Fatalf("next tick changed fallback noteAt from %v to %v", noteAt, repeated.noteAt)
+		t.Fatalf("next tick changed unavailable noteAt from %v to %v", noteAt, repeated.noteAt)
 	}
 }
 

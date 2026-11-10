@@ -12,7 +12,14 @@ func TestCaptureStatusDistinguishesLifecycleAndFallback(t *testing.T) {
 		m    model
 		want captureStatus
 	}{
-		{"demo", model{}, captureDemo},
+		{"default unavailable", model{}, captureUnavailable},
+		{"demo opt-in", model{cfg: map[string]string{"visualizer.demo": "true"}}, captureDemo},
+		{"demo after failure", model{vizTerminal: true, cfg: map[string]string{"visualizer.demo": "true"}}, captureDemo},
+		{"invalid demo stays off", model{cfg: map[string]string{"visualizer.demo": "invalid"}}, captureUnavailable},
+		{"false demo stays off", model{cfg: map[string]string{"visualizer.demo": "false"}}, captureUnavailable},
+		{"demo cannot replace live", model{vizLive: true, cfg: map[string]string{"visualizer.demo": "true"}}, captureLive},
+		{"demo cannot replace stale", model{vizService: &visualizer.Service{}, cfg: map[string]string{"visualizer.demo": "true"}}, captureStale},
+		{"demo cannot replace starting", model{vizOpening: true, cfg: map[string]string{"visualizer.demo": "true"}}, captureStarting},
 		{"starting", model{vizOpening: true}, captureStarting},
 		{"live silence", model{vizLive: true, vizSource: "PIPEWIRE"}, captureLive},
 		{"stale", model{vizService: &visualizer.Service{}, vizSource: "PIPEWIRE"}, captureStale},

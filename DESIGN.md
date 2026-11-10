@@ -8,8 +8,8 @@ in [PLAN.md](PLAN.md), and acceptance evidence in [TESTING.md](TESTING.md).
 A native terminal music instrument: fast navigation, readable metadata, precise
 focus, generous empty space where dimensions permit. Use terminal cells and
 normal list interactions rather than web-style cards, decorative dashboards or
-large ASCII branding. The monochrome shell and four-screen phase is implemented; PCM waveform,
-explicit demo policy and resource optimization remain later phases.
+large ASCII branding. The monochrome shell, four screens, PCM waveform and
+explicit demo policy are implemented. Resource optimization remains a later phase.
 
 The shell uses black and white. Neutral grayscale may express subdued text,
 separators and depth, with no chromatic accents. Album artwork keeps its original
@@ -110,7 +110,7 @@ Target at most 30 visual frames per second, lowering idle cadence after profilin
 - Show `LIVE · system output` and the verified backend only for fresh capture.
   System output includes other applications; it is not an isolated track feed.
 - Show starting, stale or unavailable explicitly. Quiet failure is the default
-  proposed behavior; any demo is explicitly enabled and continuously labeled.
+  behavior; any demo is explicitly enabled and continuously labeled.
 - The transport timeline's existing loudness history is distinct from a PCM
   waveform. Do not invent unplayed history or fill a track with generated samples.
 

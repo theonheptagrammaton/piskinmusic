@@ -145,7 +145,7 @@ saved configuration, authentication profiles, executable aliases or MPRIS IDs.
 Exit: keyboard/mouse parity, narrow/wide/short layouts, all prior actions reachable,
 no colored shell accents in the default theme. Commit the usable screen phase.
 
-### 4 — PCM waveform and trustworthy visualizations
+### 4 — PCM waveform and trustworthy visualizations (complete)
 
 Extend `visualizer.Frame` with a bounded value-owned time-domain waveform and
 sample metadata. Aggregate real PCM before discarding capture buffers. Keep the
@@ -158,6 +158,14 @@ updates, not deletion.
 
 Exit: deterministic PCM tests (silence, sine, impulse, stereo/anti-phase,
 chunking), stale/error recovery checks, live target verification. Commit separately.
+
+Completed on Linux ARM64: fixed 4096-frame PCM window, 128 per-channel min/max
+points, RMS/peak and format/frame metadata in value-owned snapshots; a persisted
+waveform mode; fresh/stale/error handling; quiet unavailable panels and explicit
+`visualizer.demo = true` compatibility fallback. FFT and torus/sphere math remain
+unchanged. Deterministic, race, lifecycle, build and actual playback/pause/resume
+capture/UI checks passed; see phase 4 in TESTING.md. Existing fallback tests were
+intentionally updated and extended, not removed.
 
 ### 5 — Resource use, platform validation, release
 
@@ -173,10 +181,11 @@ capture status. Push completed commits only to a verified development branch.
 
 ## Current change scope
 
-Phases 0–3 are complete. Phase 3 adds PISKIN MUSIC branding, a fixed monochrome
-default, Library/Focus/Visualizer/Lyrics screens, responsive shared geometry,
-queue/EQ/search/account/help access and keyboard/mouse navigation. Original
-palette names and saved config/profile/alias/MPRIS identities remain compatible.
-Original-color artwork uses the existing half-block renderer; no dependency was
-added. See the phase 3 evidence in TESTING.md. PCM waveform, explicit demo
-policy and resource/platform validation remain phases 4–5.
+Phases 0–4 are complete. Phase 4 adds real PCM waveform snapshots and rendering,
+truthful capture states and an explicit demo compatibility option. Existing
+spectrum/shape mathematics, track loudness timeline, mode names, playback and
+persisted configuration remain compatible except for the intentional default:
+failed capture is quietly unavailable instead of automatically simulated.
+No dependency, installer, desktop configuration or DRM change was added.
+Resource measurements, native macOS/Windows runtime validation and release work
+remain phase 5. This phase is committed separately; no push is requested.

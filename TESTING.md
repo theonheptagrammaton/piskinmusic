@@ -550,3 +550,102 @@ compatibility. Only root UI code/tests and product/config documentation changed.
 No browser/profile, audio recording, generated binary or credential is committed.
 PCM waveform, explicit demo policy and resource/platform validation remain later
 phases. This phase is committed locally; no push is part of this request.
+
+
+## Phase 4 — PCM waveform and capture truth — 2026-11-10
+
+Parent: `1155b77`, on local `main` tracking the configured development fork
+`origin/main`. Entry tree was clean. The unchanged `go test ./...` baseline
+passed. Go was absent from PATH; all commands below used the existing official
+`/tmp/piskin-toolchain/go/bin/go` (Go 1.26.11, native Linux ARM64).
+
+This phase intentionally replaces automatic simulated fallback with quiet
+UNAVAILABLE panels. `[visualizer] demo = true` explicitly restores the legacy
+DEMO · SIMULATED bands only when capture is unavailable. Starting/stale capture
+remains quiet; demo supplies neither PCM nor recorded track history. Existing
+fallback/title/history/error tests were updated to assert the new default and
+explicit compatibility behavior, including no repeated notification. They were
+not deleted. Existing bars/torus/sphere IDs/names and `orb` alias remain compatible;
+the new mode persists as `waveform`. FFT analyzer and torus/sphere mathematics
+are unchanged. The existing track timeline still records band-derived loudness.
+
+| Check | Result |
+| --- | --- |
+| `go test -json -count=1 ./...` | PASS: 402 tests/subtests, 4 opt-in skips, 0 failures; all 6 packages pass |
+| `go test -race -json -count=1 ./...` | PASS: same counts, no race reported |
+| `go vet ./...` | PASS |
+| `CGO_ENABLED=1 go build -o /tmp/piskin-phase4 .` | PASS, native Linux ARM64 |
+| `CGO_ENABLED=0 go build -o /tmp/piskin-phase4-nocgo .` | PASS, native Linux ARM64 |
+| Windows amd64 and macOS arm64 nocgo cross-builds | PASS; compilation only, not native runtime/capture verification |
+| `AMTUI_TEST_PULSE_FIXTURE=1 go test -race -v -count=3 -timeout=35s ./visualizer -run '^TestPulseIsolatedLifecycle$'` | PASS, all three isolated runs |
+| Live source/service and root UI checks below | PASS, native ARM64 PipeWire capture |
+| `git diff --check` and full diff review | PASS |
+
+The four ordinary-suite skips are the explicit live source/service, live PCM UI,
+isolated server lifecycle and disposable headed-browser checks. The first three
+were executed separately for this phase; the disposable browser login test was
+not repeated. No new dependencies were added. No profiles, credentials, binary,
+audio recording or temporary probe is committed.
+
+Deterministic tests cover real input-domain properties using generated PCM:
+zero silence with valid live metadata; whole-cycle sine amplitude/RMS; positive
+and negative impulses at window/bin boundaries; unequal stereo and anti-phase
+signals with signed channel separation; irregular sample reads that split stereo
+frames; startup partial windows; wrapping beyond 4096 frames; chronological
+min/max; chunk-independent PCM and unchanged FFT output; and value ownership
+across Latest copies and capture-buffer reuse. Rendering checks cover signed L/R,
+window/format metadata, impulse retention at narrow widths, small/zero dimensions,
+mode persistence and the freshness boundary. Stale capture clears PCM/peaks and
+history eligibility; a new frame restores PCM. Terminal failure clears prior
+signal quietly, and reopening with a different source/format and real silence
+restores LIVE with new metadata. Demo remains explicit and cannot replace
+starting, stale or live capture, even when enabled.
+
+### Native live PCM and UI repeat
+
+The existing session identified PulseAudio on PipeWire 1.6.9. The application's
+actual Go backend selected `audio_effect.j293-convolver.monitor`, negotiated
+float32 at 48,000 Hz / 2 channels, and reported PIPEWIRE. Both Source and Service
+were tested with the race detector; generated PCM was not injected as a source.
+The service smoke test now checks waveform range/levels, format, increasing
+complete-frame counts, chronological timestamps and finite extrema as well as
+its existing FFT/source checks. Only aggregate levels/times survive the tests.
+
+Controlled playback used the existing public `engine.Engine` methods through a
+temporary probe outside the checkout: official headed Chromium/MusicKit and the
+already authorized persistent session. Catalog `636968288`, “Get Lucky” radio
+edit, reported a 4:08 duration, playing without initialization/player errors.
+This repeats PCM verification, not the earlier full two-minute subscription or
+user-confirmed audibility gate. No account identifiers or browser data were
+exported, and DRM, entitlement handling and desktop configuration were unchanged.
+
+Times below are TRT (UTC+03:00), local read completion rather than hardware time.
+
+| Controlled state | Actual capture result |
+| --- | --- |
+| Initially idle, 22:53:32–38 | Fresh Source/Service reads, all zero PCM; 91 observed service frames, 141120 complete frames received, zero envelope RMS/peak and FFT levels |
+| Playing, 22:55:15–21 | Source RMS 0.114275, peak 0.498163; Service 96 observed frames / 86 spectrum changes, 4096-frame / 128-point envelope, max channel-window RMS 0.230959 and peak 0.500557 |
+| Paused at 1:08; capture 22:56:47–53 | Source/Service PCM, envelope RMS/peak and FFT all zero; 91 observed service frames, still fresh/live |
+| Resumed, 22:58:08–14, final implementation | Source RMS 0.121734, peak 0.500018; Service 93 observed frames / 86 spectrum changes, 142560 complete frames received, max channel-window RMS 0.208644 and peak 0.508547 |
+
+Live commands:
+
+```sh
+AMTUI_TEST_PULSE=1 go test -race -v -count=1 -timeout=25s ./visualizer -run '^TestPulseLiveSmoke$'
+AMTUI_TEST_PULSE=1 AMTUI_TEST_PULSE_REQUIRE_SIGNAL=1 go test -race -v -count=1 -timeout=25s . ./visualizer -run '^(TestPulseLiveSmoke|TestPCMLiveUI)$'
+```
+
+`TestPCMLiveUI` passed on actual silent and playing capture through Service →
+model → View, all four modes at 40×12, 80×24 and 120×32. Frame bounds, LIVE/backend
+labels and PCM rendering passed. During resumed playback its first owned
+1440-frame snapshot had L/R peaks 0.156711 / 0.128368 and RMS 0.0516543 / 0.0534941.
+The pause run had zero peaks/RMS and remained live. This is rendered-frame
+verification; interactive terminal input was not repeated. The probe paused
+playback and closed only its owned browser after checking state at 1:47.
+
+The isolated PipeWire fixture passed three times under race: reopening after a
+default-sink change selected the new monitor, removing that monitor moved capture
+to the surviving sink, server loss surfaced EOF, and a fresh server/source
+restored capture. Only fixture-owned daemons were stopped. The user's audio
+server was never restarted. Actual physical device hotplug, native macOS tap,
+Windows runtime and resource/performance measurements remain phase 5 work.
