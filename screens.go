@@ -19,7 +19,7 @@ const (
 	screenLyrics
 )
 
-var screenNames = [...]string{"Library", "Focus", "Visualizer", "Lyrics"}
+var screenNames = [...]string{"Library", "Cover", "Visualizer", "Lyrics"}
 var libraryNames = [...]string{"Albums", "Playlists", "Recent"}
 
 // screenLabel carries a textual active marker even in terminals without color.
@@ -122,13 +122,25 @@ func (m model) playLibrarySelection() (tea.Model, tea.Cmd) {
 // listWindow is shared by rendering and pointer selection, including the final page.
 func listWindow(selected, count, rows int) int { return max(0, min(selected-rows/2, count-rows)) }
 
-// selectedRow uses inverse text; callers supply a marker for reduced-color terminals.
+// Callers supply a marker for reduced-color terminals.
 func selectedRow(text string, w int) string {
+	if rainbow {
+		return lipgloss.NewStyle().Background(selBg).Bold(true).Render(pad(brandText(strings.TrimRight(text, " ")), w))
+	}
 	return lipgloss.NewStyle().Foreground(selectedText).Background(selBg).Bold(true).Render(pad(text, w))
 }
+
+func libraryTabLabel(w, i int) string {
+	if w < 31 {
+		return []string{"A", "P", "R"}[i]
+	}
+	return libraryNames[i]
+}
+
 func (m model) libraryPanel(w, h int) string {
 	tabs := ""
-	for i, name := range libraryNames {
+	for i := range libraryNames {
+		name := libraryTabLabel(w, i)
 		label := " " + name + " "
 		if i == m.libraryTab {
 			label = "[" + name + "]"
@@ -242,11 +254,12 @@ func centeredBlock(s string, w, h int) string {
 }
 
 func (m model) header(l layout) string {
-	key := headerKey{m.w, m.screen, fgBright, fgDim, selectedText, selBg, lipgloss.ColorProfile()}
+	key := headerKey{w: m.w, screen: m.screen, bright: fgBright, dim: fgDim,
+		selected: selectedText, selection: selBg, accent: accentHi, rainbow: rainbow, profile: lipgloss.ColorProfile()}
 	if m.renderCache != nil && m.renderCache.header != "" && m.renderCache.headerKey == key {
 		return m.renderCache.header
 	}
-	brand := lipgloss.NewStyle().Foreground(fgBright).Bold(true).Render("PISKIN MUSIC")
+	brand := brandText("PISKIN MUSIC")
 	top := " " + brand
 	if len(l.actions) > 0 {
 		top += strings.Repeat(" ", max(1, l.actions[0].x-lipgloss.Width(top)))

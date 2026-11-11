@@ -27,6 +27,7 @@ var (
 	selBg        lipgloss.Color
 	background   lipgloss.Color
 	selectedText lipgloss.Color
+	rainbow      bool
 )
 
 // theme is a full palette. The zero-value name "" is never registered.
@@ -44,10 +45,10 @@ type theme struct {
 	selectedText lipgloss.Color
 }
 
-// PISKIN is the fixed monochrome default. All original named palettes remain
+// PISKIN combines a neutral shell with the brand's rainbow accents. Named palettes remain
 // explicit legacy choices, including artwork-driven "auto".
 var themes = []theme{
-	{name: "piskin", accent: "#D0D0D0", accentHi: "#FFFFFF", accentLo: "#707070", fgBright: "#FFFFFF", fgDim: "#A0A0A0", fgFaint: "#808080", borderDim: "#303030", selBg: "#FFFFFF", background: "#000000", selectedText: "#000000"},
+	{name: "piskin", accent: "#63C7FF", accentHi: "#EE8AFF", accentLo: "#7272DE", fgBright: "#FFFFFF", fgDim: "#B0B0B0", fgFaint: "#888888", borderDim: "#303030", selBg: "#242424", background: "#000000", selectedText: "#FFFFFF"},
 	{name: "apple", accent: "#FA233B", accentHi: "#FB5C74", accentLo: "#8A1E30", fgBright: "#F2F2F7", fgDim: "#8E8E93", fgFaint: "#5A5A5E", borderDim: "#3A3A3C", selBg: "#2C2C2E", background: "#000000", selectedText: "#F2F2F7"},
 	{name: "catppuccin", accent: "#F38BA8", accentHi: "#F5C2E7", accentLo: "#7D3C50", fgBright: "#CDD6F4", fgDim: "#9399B2", fgFaint: "#6C7086", borderDim: "#45475A", selBg: "#313244", background: "#000000", selectedText: "#CDD6F4"},
 	{name: "gruvbox", accent: "#FB4934", accentHi: "#FE8019", accentLo: "#9D0006", fgBright: "#EBDBB2", fgDim: "#A89984", fgFaint: "#7C6F64", borderDim: "#504945", selBg: "#3C3836", background: "#000000", selectedText: "#EBDBB2"},
@@ -57,10 +58,37 @@ var themes = []theme{
 }
 
 func applyTheme(t theme) {
+	rainbow = t.name == "piskin"
 	accent, accentHi, accentLo = t.accent, t.accentHi, t.accentLo
 	fgBright, fgDim, fgFaint = t.fgBright, t.fgDim, t.fgFaint
 	borderDim, selBg = t.borderDim, t.selBg
 	background, selectedText = t.background, t.selectedText
+}
+
+// The same spectrum runs through headings, selections and audio visuals.
+// Text markers continue to carry selection when terminal colors are disabled.
+var brandSpectrum = [...]lipgloss.Color{"#FF707D", "#FFB36B", "#F5DB72", "#7EDFA2", "#63C7FF", "#9B9AFF", "#EE8AFF"}
+
+func spectrumColor(index, count int) lipgloss.Color {
+	return brandSpectrum[min(len(brandSpectrum)-1, max(0, index)*len(brandSpectrum)/max(1, count))]
+}
+
+func brandText(s string) string {
+	if !rainbow {
+		return lipgloss.NewStyle().Foreground(accentHi).Bold(true).Render(s)
+	}
+	runes := []rune(s)
+	var b strings.Builder
+	for start := 0; start < len(runes); {
+		end := start + 1
+		color := spectrumColor(start, len(runes))
+		for end < len(runes) && spectrumColor(end, len(runes)) == color {
+			end++
+		}
+		b.WriteString(lipgloss.NewStyle().Foreground(color).Bold(true).Render(string(runes[start:end])))
+		start = end
+	}
+	return b.String()
 }
 
 func themeByName(name string) *theme {
@@ -367,7 +395,7 @@ func themeFromConfig(cfg map[string]string, saved string) theme {
 		t = *found
 	}
 	if t.name == "piskin" {
-		return t // the standard shell is always monochrome
+		return t // keep the standard neutral shell and brand spectrum together
 	}
 	set := func(key string, dst *lipgloss.Color) {
 		if v := cfg["theme."+key]; v != "" {

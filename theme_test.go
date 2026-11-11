@@ -255,7 +255,7 @@ func TestAccentTrioIsReadable(t *testing.T) {
 	}
 }
 
-func TestPiskinDefaultIsFixedMonochromeAndLegacyChoicesSurvive(t *testing.T) {
+func TestPiskinDefaultHasNeutralShellAndRainbowAccentsAndLegacyChoicesSurvive(t *testing.T) {
 	defer applyTheme(themes[0])
 	dir := t.TempDir()
 	t.Setenv("AMTUI_CONFIG_DIR", dir)
@@ -275,13 +275,13 @@ func TestPiskinDefaultIsFixedMonochromeAndLegacyChoicesSurvive(t *testing.T) {
 		t.Fatalf("default %q", defaultTheme.name)
 	}
 	applyTheme(themeFromConfig(map[string]string{"theme.name": "piskin", "theme.accent": "#FF0000"}, "auto"))
-	for _, c := range []lipgloss.Color{accent, accentHi, accentLo, fgBright, fgDim, fgFaint, borderDim, selBg, background, selectedText} {
+	for _, c := range []lipgloss.Color{fgBright, fgDim, fgFaint, borderDim, selBg, background, selectedText} {
 		_, sat, _ := hexToHSV(string(c))
 		if sat != 0 {
 			t.Fatalf("chromatic default token %s", c)
 		}
 	}
-	if background != "#000000" || selectedText != "#000000" || selBg != "#FFFFFF" {
+	if !rainbow || background != "#000000" || selectedText != "#FFFFFF" || selBg != "#242424" {
 		t.Fatal("default background/selection roles incorrect")
 	}
 	got := themeFromConfig(loadConfig(), loadThemeName())
@@ -294,7 +294,7 @@ func TestPiskinDefaultIsFixedMonochromeAndLegacyChoicesSurvive(t *testing.T) {
 	}
 }
 
-func TestDefaultFramesHaveNoChromaticShellColors(t *testing.T) {
+func TestDefaultFramesHaveRainbowAccentsOnBlackBackground(t *testing.T) {
 	defer applyTheme(themes[0])
 	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
 	lipgloss.SetColorProfile(termenv.TrueColor)
@@ -326,10 +326,11 @@ func TestDefaultFramesHaveNoChromaticShellColors(t *testing.T) {
 			if len(matches) == 0 {
 				t.Fatal("true-color styles were not exercised")
 			}
-			for _, c := range matches {
-				if c[1] != c[2] || c[2] != c[3] {
-					t.Fatalf("screen %d %s: chromatic shell escape %s", s, overlay, c[0])
-				}
+			if !strings.Contains(frame, "48;2;0;0;0") {
+				t.Fatalf("highlight %d %s lost its black background", s, overlay)
+			}
+			if overlay == "" && (!strings.Contains(frame, "38;2;255;112;125") || !strings.Contains(frame, "38;2;238;138;255")) {
+				t.Fatal("dashboard lost its rainbow spectrum")
 			}
 		}
 	}
@@ -367,8 +368,8 @@ func TestColorOnlyLegacyConfigKeepsItsOriginalBase(t *testing.T) {
 	if got.name != "apple" || got.accent != "#123456" || got.fgBright != themeByName("apple").fgBright {
 		t.Fatal("existing color-only customization changed")
 	}
-	if got := themeFromConfig(cfg, "piskin"); got.name != "piskin" || got.accent != "#D0D0D0" {
-		t.Fatal("saved PISKIN selection is not fixed monochrome")
+	if got := themeFromConfig(cfg, "piskin"); got.name != "piskin" || got.accent != themes[0].accent {
+		t.Fatal("saved PISKIN selection lost its brand palette")
 	}
 	if len(cfg) != 1 || cfg["theme.accent"] != "#123456" {
 		t.Fatal("config resolution mutated existing keys")

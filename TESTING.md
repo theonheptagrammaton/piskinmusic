@@ -889,3 +889,43 @@ Verified locally on Linux ARM64 with `go1.27.2-X:nodwarf5`:
 No new subscription playback, audible-output or permissioned capture pass is
 claimed for this appearance-only change. Previous platform runtime evidence and
 outstanding macOS permissioned-capture checks retain their existing status.
+
+
+## Unified rainbow dashboard — 2026-11-11
+
+The user confirmed that Library, Queue, Cover, Visualizer and Lyrics should all
+remain visible, including in small windows, with a neutral black/white base and
+rainbow headings, selected rows and visualization. This supersedes the earlier
+monochrome/four-screen product assertions, which have been updated accordingly.
+
+Entry: `main` at `5ce938f`, configured origin is the user-owned PISKIN fork.
+The only entry untracked item was the nested `piskinmusic/` checkout; it was
+left untouched. Baseline `go test ./...` passed before edits. This revision
+changes the current workspace, not the installed `~/.local/bin/amtui`.
+
+Verification on Linux ARM64 with Go 1.27.2:
+
+| Check | Result |
+| --- | --- |
+| `go test -count=1 ./...` | PASS, all six packages |
+| `go test -race -count=1 ./...` | PASS, all six packages, no race reported |
+| `go vet ./...` | PASS |
+| Native `go build` and `CGO_ENABLED=0 go build` | PASS, binaries under `/tmp`; version reports linux/arm64 |
+| Compiled-test PTY driver | PASS, real keyboard/mouse/focus/resize input with fixture playback |
+| `git diff --check` | PASS |
+
+The new content-level resize regression checks 40×12, 41×13, 60×20, 80×24,
+99×12, 100×12, 120×32 and 180×50, then returns to 40×12. It verifies actual
+library and queue rows, a colored cover thumbnail, capture status and a lyric
+inside their allocated regions for all four panel highlights. Existing scrolled
+list, category, recent-tile, overlay, transport and click geometry checks pass.
+The color regression exercises all four visualizers and selected-row spectrum;
+compact demo identity remains explicitly DEMO / SIMULATED. Legacy named themes,
+original artwork colors, persistence and reduced-motion behavior remain covered.
+
+`docs/media/dashboard-*.png` are rasterized ANSI fixture renders at 40×12,
+80×24 and 120×35, reviewed visually. Synthetic cover/metadata/lyrics and demo
+bands are labeled as fixtures; they contain no account data and do not claim
+live playback or live capture. No new subscription audibility or permissioned
+hardware-capture check was run, and no installer or desktop configuration was
+changed. The browser/playback/capture implementation is unchanged.

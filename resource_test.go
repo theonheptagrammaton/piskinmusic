@@ -108,7 +108,6 @@ func TestAdaptiveCadenceAndHiddenMotion(t *testing.T) {
 	}
 	m.cfg["ui.reduced_motion"] = "false"
 	for _, hide := range []func(*model){
-		func(m *model) { m.screen = screenLibrary },
 		func(m *model) { m.queueOpen = true },
 		func(m *model) { m.eqOpen = true },
 		func(m *model) { m.helpOpen = true },

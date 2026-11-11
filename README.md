@@ -1,10 +1,10 @@
 # PISKIN MUSIC — Apple Music in your terminal
 
-PISKIN MUSIC is a keyboard-first Apple Music terminal client with a monochrome
-interface, original-color artwork, live audio visualization and synced lyrics.
+PISKIN MUSIC is a keyboard-first Apple Music terminal client with a black-and-white
+base and rainbow accents, original-color artwork, live audio visualization and synced lyrics.
 It builds on the MIT-licensed
 [applemusic-tui](https://github.com/k1y0miiii/applemusic-tui) by k1y0miiii,
-with four screens: **Library, Focus, Visualizer and Lyrics**.
+with **Library, Queue, Cover, Visualizer and Lyrics together on one screen**.
 
 The executable remains `amtui`. Existing aliases, configuration, browser sign-in
 profiles and MPRIS identity are preserved; no migration is required.
@@ -20,24 +20,31 @@ controlled through MusicKit. Sign-in and DRM stay in the browser; PISKIN MUSIC
 provides the terminal interface. Linux and macOS support live system-audio
 capture; Windows supports playback with no native capture backend yet.
 
-<p align="center"><img src="docs/media/demo.gif" alt="amtui — Apple Music in the terminal" width="800"></p>
+<p align="center"><img src="docs/media/dashboard-80x24.png" alt="PISKIN MUSIC — unified rainbow dashboard at 80×24" width="840"></p>
 
-The demo and screenshots in this README show the upstream interface. They have
-not yet been refreshed for PISKIN MUSIC's four-screen layout.
+The dashboard preview uses synthetic artwork, metadata and explicitly labeled
+demo visualization. It is a render preview, not a live playback screenshot.
+[Small window (40×12)](docs/media/dashboard-40x12.png) ·
+[Wide window (120×35)](docs/media/dashboard-120x35.png).
+The search and lyrics screenshots farther below show the upstream interface.
 
-## Four screens
+## One listening dashboard
 
-| Key | Screen | What it shows |
-| --- | --- | --- |
-| `1` | Library | Your albums, playlists and recently played items; use `[` / `]` to switch category. |
-| `2` | Focus | Current track metadata and album artwork, with playback controls below. |
-| `3` | Visualizer | Live spectrum, torus, sphere or PCM waveform; press `v` to cycle modes. |
-| `4` | Lyrics | Synced lyrics with artwork when there is room. |
+Library, the queue, album artwork, live visualization and synced lyrics stay
+visible together. Wide windows use three columns; below 100 columns the cover,
+visualizer and lyrics stack beside the library and queue. Even at 40×12 every
+section retains content; artwork becomes a thumbnail and lists show fewer rows.
+Below that size a minimal now-playing and resize view remains available.
 
-Screen changes preserve playback, selections and each screen's keyboard focus.
-Search (`/`), queue (`c`), EQ (`Q`), account (`a`) and help (`?`) are available
-from every screen. The interface adapts down to 40×12 terminal cells; smaller
-windows show a minimal now-playing and resize view.
+The `piskin` theme combines a black background and white/grayscale text with a
+rainbow spectrum in headings, selected rows and all four visualizer modes.
+Album covers keep their original colors. Existing named themes are still honored.
+
+`1`–`4` highlight Library, Cover, Visualizer or Lyrics without hiding the other
+panels. `Tab` / `Shift+Tab` cycle the interactive list and transport regions;
+`[` / `]` switch the library category (A/P/R in narrow panels).
+Search (`/`), an expanded queue (`c`), EQ (`Q`), account (`a`) and help (`?`)
+open over the dashboard and restore it when closed.
 
 ## Features
 
@@ -61,7 +68,7 @@ windows show a minimal now-playing and resize view.
 - **MPRIS on Linux** — media keys, panel widgets, lock screens and `playerctl`
   drive it like any desktop player. Appears automatically when there is a
   session bus.
-- **Themes** — the fixed monochrome `piskin` default plus six legacy palettes,
+- **Themes** — the black-and-white plus rainbow `piskin` default plus six legacy palettes,
   cycled with `t`. Legacy colors can be overridden in the config; `auto` pulls
   its accent from the artwork.
 - **Reduced motion** — optional fixed shape orientation, no bass pulse and
@@ -153,6 +160,26 @@ A `CGO_ENABLED=0` macOS build has no live capture and shows UNAVAILABLE.
 Linux capture is pure Go and works without cgo. The legacy demo remains an
 explicit opt-in on all platforms.
 
+### Updating an existing Linux / macOS install
+
+Close the running player, then work in the same source checkout you originally
+cloned. Fetch and install the new version:
+
+```sh
+git pull --ff-only
+./install.sh --no-path
+amtui
+```
+
+`git pull` updates source files; the installer rebuilds and replaces the installed
+`~/.local/bin/amtui`. `--no-path` avoids editing shell configuration. Sign-in and
+saved preferences remain in place. If Git reports local changes or diverged
+history, resolve those first instead of forcing the update.
+
+For changes made locally in this checkout, run just `./install.sh --no-path`
+and relaunch `amtui`; those changes do not need a pull. They reach other clones
+only after being committed and pushed to GitHub.
+
 ### From source — Windows
 
 ```powershell
@@ -197,7 +224,7 @@ may trigger SmartScreen; building from this checkout is also supported.
 3. Done — the window hides and the TUI takes over. The session persists in
    `~/.config/amtui/chrome`, so next launches go straight to the player.
 4. Press `/` to search, or browse Library with `[` / `]` and the arrow keys.
-   Press `Enter` to play and `1`–`4` to change screens. `?` opens the full controls.
+   Press `Enter` to play and `1`–`4` to highlight dashboard panels. `?` opens the full controls.
 
 ## Keys
 
@@ -207,9 +234,9 @@ may trigger SmartScreen; building from this checkout is also supported.
 | --- | --- |
 | `Space` | Play / pause |
 | `n` / `p` | Next / previous track |
-| `1` / `2` / `3` / `4` | Library / Focus / Visualizer / Lyrics |
+| `1` / `2` / `3` / `4` | Highlight Library / Cover / Visualizer / Lyrics; keep all panels visible |
 | `Tab` / `Shift+Tab` | Next / previous visible focus region |
-| `c` / `Esc` | Open queue / close queue |
+| `c` / `Esc` | Expand queue / return to dashboard |
 | `[` / `]` | Library: previous / next category (albums, playlists, recent) |
 | `j` `k` / `↓` `↑` | Lists: move selection · Recent grid: move a row · Transport: volume down / up |
 | `Enter` | Play the selected library item, queue track or recent cover |
@@ -227,7 +254,7 @@ may trigger SmartScreen; building from this checkout is also supported.
 
 ### Mouse
 
-Click screen labels to navigate and toolbar labels to open search, queue, EQ,
+Click panel shortcuts to highlight a region and toolbar labels to open search, queue, EQ,
 account or help. Click a library item, queue row, recent cover or search result
 to play it; scroll over its list to move selection. Search has category and
 queue/end/next buttons. Click the play icon to pause/resume, the progress bar to
@@ -235,11 +262,11 @@ seek, or wide transport shuffle/repeat labels to toggle them. The transport whee
 changes volume. EQ has clickable gain/preset/reset/close controls; click a band
 to select it. General help commands and their individual keys are clickable.
 
-At 40×12 through narrow sizes the main region takes priority, with `c` providing
-a full queue. Library also shows a queue from 70 columns; other screens gain a
-queue support column at 120×32. Artwork is omitted when space is limited. Below
-40×12 a minimal now-playing/resize view retains keyboard pause, help and quit.
-Screen changes preserve playback, selections, search results and per-screen focus.
+At 40×12 and above, all five dashboard sections remain visible. Narrow windows
+reduce artwork and list heights; `c` expands the queue when you want more rows.
+Wide, tall windows also show recent cover tiles below the browsing lists.
+Below 40×12 a minimal now-playing/resize view retains keyboard pause, help and quit.
+Highlight changes preserve playback, selections and search results.
 
 ### Search
 
@@ -344,22 +371,20 @@ end does not count as a play.
 
 ## Themes
 
-`piskin` is the fixed black/white/grayscale default, including inverse selection
-and an explicit black background. Artwork retains its original colors through
-the portable half-block renderer. All six original palettes remain explicit
-legacy choices: `apple`, `catppuccin`, `gruvbox`, `nord`, `mono`, and `auto`.
-Saved palette names and explicit config choices are honored. An existing color-only
-config without a palette name keeps the legacy `apple` base; explicitly select
-`piskin` to use the fixed monochrome shell. Press `t` to cycle;
-the choice is remembered in
-`~/.config/amtui/theme`.
+`piskin` is the black/white/grayscale default with rainbow headings, selections
+and visualizers. Artwork retains its original colors through the portable
+half-block renderer. All six original palettes remain explicit legacy choices:
+`apple`, `catppuccin`, `gruvbox`, `nord`, `mono`, and `auto`. Saved palette names
+and explicit config choices are honored. An existing color-only config without
+a palette name keeps the legacy `apple` base. Press `t` until `piskin` appears
+to use the brand spectrum; the choice is remembered in `~/.config/amtui/theme`.
 
 `auto` takes its accent from the dominant color of the current track's album
 art. Only the accent changes — background and text stay neutral, so no cover can
 make the interface unreadable.
 
 The `piskin` palette ignores individual color overrides to keep its standard
-appearance monochrome. To customize colors, select a named legacy palette.
+neutral shell and rainbow spectrum consistent. To customize colors, select a named legacy palette.
 To pick a theme up front or override legacy colors, copy
 [`docs/config.example.toml`](docs/config.example.toml) to
 `~/.config/amtui/config.toml`. The same file switches the peak markers, the bass

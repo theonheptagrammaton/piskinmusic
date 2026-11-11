@@ -718,7 +718,7 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.toggleQueue()
 		}
 	case "[", "]":
-		if !m.eqOpen && !m.queueOpen && m.screen == screenLibrary {
+		if !m.eqOpen && !m.queueOpen {
 			step := 1
 			if msg.String() == "[" {
 				step = 2

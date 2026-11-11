@@ -4,9 +4,9 @@
 
 Build a premium, keyboard-first Apple Music terminal client for Linux and macOS.
 The primary target is an M1 MacBook Pro running Linux ARM64, Omarchy,
-Hyprland 0.56.2, Ghostty, and PipeWire. Use a black-and-white interface with
-original-color album artwork. The four primary screens are Library, Focus,
-Visualizer, and Lyrics. Retain mouse interaction and all existing functionality.
+Hyprland 0.56.2, Ghostty, and PipeWire. Use a black-and-white base with rainbow headings, selections and visualizers,
+and original-color album artwork. Library, Queue, Cover, Visualizer and Lyrics
+must remain visible together, including in small windows down to 40×12. Retain mouse interaction and all existing functionality.
 
 Working, authorized playback comes before visual development. Read [PLAN.md](PLAN.md),
 [ARCHITECTURE.md](ARCHITECTURE.md), [DESIGN.md](DESIGN.md), and

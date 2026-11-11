@@ -47,19 +47,19 @@ func TestHeaderAndTransportTargetsMatchVisibleLabels(t *testing.T) {
 	}
 }
 
-func TestLibraryPrioritizesContentAndListeningScreensHideSidebar(t *testing.T) {
+func TestPanelHighlightsKeepAllDashboardRegionsVisible(t *testing.T) {
 	for _, width := range []int{70, 80, 120, 180, 240} {
 		m := recentModel()
 		m.w = width
 		l := m.layout()
-		if l.leftW > 38 || l.leftW >= l.main.w || l.queueBody.w == 0 {
+		if l.leftW > 38 || l.leftW >= width/2 || l.queueBody.w == 0 {
 			t.Fatalf("width %d: sidebar crowds out the library: %+v", width, l)
 		}
 		for s := screenFocus; s <= screenLyrics; s++ {
 			m.screen = s
 			l = m.layout()
-			if l.main.w != width || l.queueBody.h != 0 || l.recentBody.h != 0 {
-				t.Fatalf("screen %d should use the full width", s)
+			if l.queueBody.h == 0 || l.libraryBody.h == 0 || l.nowPlaying.h == 0 || l.visualizer.h == 0 || l.lyrics.h == 0 {
+				t.Fatalf("panel highlight %d hid dashboard content", s)
 			}
 			m.toggleQueue()
 			if m.layout().queueBody.w != width-2 {

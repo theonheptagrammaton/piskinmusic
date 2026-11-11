@@ -161,8 +161,10 @@ func TestEachScreenShowsItsOwnPrimaryContent(t *testing.T) {
 		if !strings.Contains(m.View(), want) {
 			t.Fatalf("screen %d missing %q", s, want)
 		}
-		if s != int(screenVisualizer) && strings.Contains(m.View(), "SIMULATED") {
-			t.Fatal("inactive visualizer rendered")
+		for _, shared := range []string{"LIBRARY", "NOW PLAYING", "VISUALIZER", "LYRICS", "QUEUE"} {
+			if !strings.Contains(m.View(), shared) {
+				t.Fatalf("highlight %d hid %s", s, shared)
+			}
 		}
 	}
 }
@@ -181,8 +183,8 @@ func TestTextFocusMarkersSurviveWithoutColor(t *testing.T) {
 			if !strings.Contains(frame, "[QUEUE") || !strings.Contains(frame, "▸▶") {
 				t.Fatal("queue focus or playing marker lost")
 			}
-		} else if m.layout().queueBody.h != 0 {
-			t.Fatal("listening screen shows an unrequested queue")
+		} else if m.layout().queueBody.h == 0 {
+			t.Fatal("dashboard highlight hid the queue")
 		}
 	}
 }

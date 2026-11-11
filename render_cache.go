@@ -26,10 +26,11 @@ type renderCache struct {
 }
 
 type headerKey struct {
-	w                                int
-	screen                           screen
-	bright, dim, selected, selection lipgloss.Color
-	profile                          termenv.Profile
+	w                                        int
+	screen                                   screen
+	bright, dim, selected, selection, accent lipgloss.Color
+	rainbow                                  bool
+	profile                                  termenv.Profile
 }
 
 type renderedArtwork struct {

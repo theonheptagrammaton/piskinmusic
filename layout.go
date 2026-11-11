@@ -40,13 +40,13 @@ func clipTargets(targets []keyTarget, w, h int) []keyTarget {
 }
 
 type layout struct {
-	visible                                          bool
-	queueBody, recentBody, transport, progress, play rect
-	main, libraryBody                                rect
-	nav                                              [4]rect
-	actions                                          []keyTarget
-	libraryTabs                                      [3]rect
-	queueY                                           int
+	visible                                                bool
+	queueBody, recentBody, transport, progress, play       rect
+	main, libraryBody                                      rect
+	library, queue, nowPlaying, visualizer, lyrics, recent rect
+	nav                                                    [4]rect
+	actions                                                []keyTarget
+	libraryTabs                                            [3]rect
 
 	recentGrid  recentGridLayout
 	recentTiles [recentCols]rect
@@ -54,7 +54,7 @@ type layout struct {
 	topH   int // rows above the transport
 	leftW  int // full width of the queue column, borders included
 	rightW int
-	qw, qh int // queue panel content size
+	qw, qh int // queue content width and full panel height
 	recH   int // full height of the recently-played box, 0 when hidden
 }
 
@@ -78,7 +78,7 @@ func (m model) layout() layout {
 }
 
 func (m model) staticLayout() layout {
-	l := layout{visible: m.w >= 40 && m.h >= 12, topH: m.h - 4, queueY: 2}
+	l := layout{visible: m.w >= 40 && m.h >= 12, topH: m.h - 4}
 	if !l.visible {
 		return l
 	}
@@ -108,43 +108,55 @@ func (m model) staticLayout() layout {
 	}
 	bodyH := m.h - 6
 	l.main = rect{0, 2, m.w, bodyH}
-	showQueue := m.queueOpen || (m.screen == screenLibrary && m.w >= 70)
-	if m.eqOpen {
-		showQueue = false
-	}
-	if showQueue {
-		l.leftW = min(38, max(28, m.w*28/100))
-		if m.queueOpen {
-			l.leftW = m.w
-		}
+	if m.queueOpen && !m.eqOpen {
+		l.queue = l.main
+	} else if !m.eqOpen {
+		// Keep all five listening regions visible, even at 40×12. Narrow
+		// windows stack three compact panels beside the two browsing lists.
+		l.leftW = min(38, max(16, m.w/3))
 		l.rightW = m.w - l.leftW
-		l.qw = l.leftW - 2
-		if m.screen == screenLibrary && !m.queueOpen && len(m.recent) > 0 {
-			l.recH = recentPanelHeight(bodyH)
-		}
-		l.qh = bodyH - 2 - l.recH
-		l.queueBody = rect{1, l.queueTop(), l.qw, l.queueRows()}
-		l.recentGrid = recentGrid(l.qw, l.recH-3)
-		if l.recH > 0 && l.recentGrid.artCols > 0 {
-			g := l.recentGrid
-			l.recentBody = rect{1, l.recentTop(), l.qw, l.recH - 3}
-			for c := range l.recentTiles {
-				l.recentTiles[c] = rect{1 + g.gap*(c+1) + g.artCols*c, l.recentTop(), g.artCols, g.artRows + 2}
+		libraryH := max(3, bodyH/2)
+		if m.w >= 100 && bodyH >= 29 && len(m.recent) > 0 {
+			l.recH = min(10, bodyH/3)
+			libraryH = max(3, (bodyH-l.recH)/2)
+			l.recent = rect{0, 2 + bodyH - l.recH, l.leftW, l.recH}
+			l.recentGrid = recentGrid(l.leftW-2, l.recH-1)
+			if l.recentGrid.artCols == 0 {
+				l.recH, l.recent = 0, rect{}
+				libraryH = bodyH / 2
 			}
-		} else if l.recH > 0 {
-			l.recH = 0
-			l.qh = bodyH - 2
-			l.queueBody.h = l.queueRows()
 		}
-		l.main = rect{l.leftW, 2, l.rightW, bodyH}
+		l.library = rect{0, 2, l.leftW, libraryH}
+		l.queue = rect{0, 2 + libraryH, l.leftW, bodyH - libraryH - l.recH}
+		if m.w >= 100 {
+			middleW := l.rightW * 55 / 100
+			l.nowPlaying = rect{l.leftW, 2, middleW, bodyH / 2}
+			l.visualizer = rect{l.leftW, 2 + bodyH/2, middleW, bodyH - bodyH/2}
+			l.lyrics = rect{l.leftW + middleW, 2, l.rightW - middleW, bodyH}
+		} else {
+			coverH, vizH := max(2, bodyH/3), max(2, bodyH/3)
+			l.nowPlaying = rect{l.leftW, 2, l.rightW, coverH}
+			l.visualizer = rect{l.leftW, 2 + coverH, l.rightW, vizH}
+			l.lyrics = rect{l.leftW, 2 + coverH + vizH, l.rightW, bodyH - coverH - vizH}
+		}
+		l.libraryBody = rect{1, l.library.y + 2, l.library.w - 2, l.library.h - 2}
+		x = 1
+		for i := range libraryNames {
+			label := libraryTabLabel(l.library.w-2, i)
+			l.libraryTabs[i] = rect{x, l.library.y + 1, lipgloss.Width(label) + 2, 1}
+			x += lipgloss.Width(label) + 3
+		}
+		if l.recH > 0 {
+			g := l.recentGrid
+			l.recentBody = rect{1, l.recent.y + 1, l.recent.w - 2, l.recent.h - 1}
+			for c := range l.recentTiles {
+				l.recentTiles[c] = rect{1 + g.gap*(c+1) + g.artCols*c, l.recentBody.y, g.artCols, g.artRows + 2}
+			}
+		}
 	}
-	if !m.queueOpen && !m.eqOpen && m.screen == screenLibrary {
-		l.libraryBody = rect{l.main.x + 1, l.main.y + 3, l.main.w - 2, l.main.h - 4}
-		x = l.main.x + 1
-		for i, name := range libraryNames {
-			l.libraryTabs[i] = rect{x, l.main.y + 2, lipgloss.Width(name) + 2, 1}
-			x += lipgloss.Width(name) + 3
-		}
+	if l.queue.h > 0 {
+		l.qw, l.qh = l.queue.w-2, l.queue.h
+		l.queueBody = rect{l.queue.x + 1, l.queue.y + 1, l.qw, l.qh - 1}
 	}
 	l.transport = rect{1, l.topH + 1, m.w - 2, 2}
 	playX := 4
@@ -156,14 +168,13 @@ func (m model) staticLayout() layout {
 }
 
 // queueRows is how many tracks the queue panel shows at once, and queueTop the
-// screen row the first of them is drawn on. Sections reserve one breathing
-// row and one heading row before the body starts.
-func (l layout) queueRows() int { return max(0, l.qh-1) }
-func (l layout) queueTop() int  { return l.queueY + 2 }
+// screen row the first of them is drawn on, after the single heading row.
+func (l layout) queueRows() int { return l.queueBody.h }
+func (l layout) queueTop() int  { return l.queueBody.y }
 
 // recentTop is the screen row the cover grid starts on, directly below the
 // queue box.
-func (l layout) recentTop() int { return l.queueY + l.qh + 2 + 2 }
+func (l layout) recentTop() int { return l.recentBody.y }
 
 // progressGeometry returns the column the progress bar starts at within the
 // transport's content, and its width. The wide transport reserves ten cells
@@ -211,20 +222,6 @@ func (l layout) recentTileAt(x, y, selected, count int) int {
 		}
 	}
 	return -1
-}
-
-// recentPanelHeight is the on-screen height of the recently-played grid for a
-// given top-area height, or 0 when the terminal is too short to fit both the
-// grid and a usable queue.
-func recentPanelHeight(topH int) int {
-	h := topH * 46 / 100
-	if h > 16 {
-		h = 16 // past this the covers stop growing — width is the binding limit
-	}
-	if h < 9 {
-		return 0 // tiles this short are unreadable — give the queue the space
-	}
-	return h
 }
 
 // recentVisible reports whether the grid is on screen and therefore focusable.

@@ -43,8 +43,8 @@ type helpSection struct {
 }
 
 var helpSections = []helpSection{
-	{"SCREENS", []helpEntry{
-		{"1 / 2", "Library / Focus"}, {"3 / 4", "Visualizer / Lyrics"}, {"c / esc", "queue / close"}, {"[ / ]", "library category"},
+	{"DASHBOARD", []helpEntry{
+		{"1 / 2", "Library / Cover focus"}, {"3 / 4", "Viz / Lyrics focus"}, {"c / esc", "expand queue / close"}, {"[ / ]", "library category"},
 	}},
 	{"PLAYBACK", []helpEntry{
 		{"space", "play / pause"},

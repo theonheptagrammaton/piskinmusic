@@ -46,6 +46,9 @@ func panel(title, body string, w, h int, focused bool, accentNow lipgloss.Color)
 		title = "[" + title + "]"
 	}
 	head := lipgloss.NewStyle().Foreground(tc).Bold(true).Render(title)
+	if rainbow {
+		head = brandText(title)
+	}
 	if room := w - lipgloss.Width(head) - 2; room > 0 {
 		head += "  " + lipgloss.NewStyle().Foreground(borderDim).Render(strings.Repeat("─", room))
 	}
@@ -399,10 +402,19 @@ func (m model) vizPanel(w, h int) string {
 	}
 	switch m.captureStatus() {
 	case captureStarting:
+		if w < 35 {
+			return centeredBlock("Waiting for audio PCM", w, h-1)
+		}
 		return centeredBlock("Waiting for system audio PCM…", w, h-1)
 	case captureStale:
+		if w < 35 {
+			return centeredBlock("Audio capture stale", w, h-1)
+		}
 		return centeredBlock("System audio capture is stale", w, h-1)
 	case captureUnavailable:
+		if w < 35 {
+			return centeredBlock("Capture unavailable", w, h-1)
+		}
 		return centeredBlock("System audio capture unavailable", w, h-1)
 	}
 	switch m.vizMode {
@@ -430,6 +442,9 @@ func (m model) vizPanel(w, h int) string {
 		markSt := lipgloss.NewStyle().Foreground(fgDim)
 		var row strings.Builder
 		for i := 0; i < bars; i++ {
+			if rainbow {
+				st = st.Foreground(spectrumColor(i, bars))
+			}
 			peak := 0.0
 			if peaks != nil {
 				peak = peaks[i]
@@ -735,38 +750,12 @@ func (m model) View() string {
 	case !lay.visible:
 		frame = "PISKIN MUSIC\n" + m.st.Now.Title + "\nterminal too small · need 40×12\nspace pause · ? help · q quit"
 	default:
-		var left string
-		if lay.queueBody.h > 0 {
-			title := m.queueTitle()
-			if m.queueOpen {
-				title += " · c / esc close"
-			}
-			left = panel(title, m.queuePanel(lay.qw, lay.qh), lay.qw, lay.qh, m.focus == focusQueue, m.pulsedAccent())
-			if lay.recH > 0 {
-				left = lipgloss.JoinVertical(lipgloss.Left, left, panel(m.recentTitle(), m.renderRecentPanel(lay.qw, lay.recH-2, lay.recentGrid), lay.qw, lay.recH-2, m.focus == focusRecent, m.pulsedAccent()))
-			}
-		}
-		var main string
-		if lay.main.w > 0 {
+		top := m.dashboard(lay)
+		if m.eqOpen {
 			w, h := lay.main.w-2, lay.main.h-2
-			title, body := "", ""
-			switch {
-			case m.eqOpen:
-				title, body = eqTitle(m.eqGains, m.eqSel), m.eqBody(w, h, lay)
-			case m.screen == screenLibrary:
-				title, body = fmt.Sprintf("LIBRARY · %d %s", len(m.libraryList(m.libraryTab)), strings.ToLower(libraryNames[m.libraryTab])), m.libraryPanel(w, h)
-			case m.screen == screenFocus:
-				title, body = "NOW PLAYING", m.focusPanel(w, h)
-			case m.screen == screenVisualizer:
-				title, body = m.visualizerTitle()+" · "+vizModeName(m.vizMode), m.vizPanel(w, h)
-			case m.screen == screenLyrics:
-				title, body = "LYRICS", m.lyricsPanel(w, h)
-			}
-			main = panel(title, body, w, h, m.focus == focusLibrary, m.pulsedAccent())
+			top = panel(eqTitle(m.eqGains, m.eqSel), m.eqBody(w, h, lay), w, h, true, m.pulsedAccent())
 		}
-		top := lipgloss.JoinHorizontal(lipgloss.Top, left, main)
-		transport := m.transportFrame(lay)
-		frame = m.header(lay) + "\n" + top + "\n" + transport
+		frame = m.header(lay) + "\n" + top + "\n" + m.transportFrame(lay)
 	}
 	frame = lipgloss.NewStyle().Background(background).Foreground(fgBright).Render(fitBlock(frame, m.w, m.h))
 	if m.renderCache != nil {

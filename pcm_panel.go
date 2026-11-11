@@ -61,7 +61,11 @@ func pcmPanel(frame visualizer.Frame, w, h int) string {
 			if r == toRow(0) {
 				prefix = label + " "
 			}
-			lines = append(lines, prefix+string(grid[r]))
+			trace := string(grid[r])
+			if rainbow {
+				trace = brandText(trace)
+			}
+			lines = append(lines, prefix+trace)
 		}
 	}
 	return fitBlock(strings.Join(lines, "\n"), w, h)

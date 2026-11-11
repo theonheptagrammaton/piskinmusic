@@ -1,5 +1,21 @@
 # PISKIN MUSIC — architecture
 
+## Unified dashboard — current presentation
+
+`dashboard.go` composes Library, Queue, Cover, Visualizer and Lyrics from the
+rectangles owned by `layout.go`. All five retain content at 40×12 and above.
+Three columns are used from 100 columns, otherwise the three listening panels
+stack beside the two lists. The optional recent cover grid remains available
+in tall, wide windows; search, expanded queue, EQ, account and help own their
+covered region. Mouse hit testing consumes the same list/tile/transport geometry.
+
+The existing screen enum now identifies a highlighted dashboard panel rather
+than hiding other primary content. Visible visualization therefore ticks on
+all panel highlights, with the existing idle/overlay/blur/reduced-motion policy.
+`theme.go` owns the PISKIN spectrum used by headings, selections, spectrum bars,
+shape painting and PCM traces. Artwork and the audio/capture/playback paths are
+unchanged. Historical phase descriptions below describe the earlier layout.
+
 ## Inspected baseline
 
 Source commit: `8df198de9e3eccbb717d4370303cdb7f811a72a8` (see [PLAN.md](PLAN.md) for

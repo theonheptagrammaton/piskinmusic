@@ -1,3 +1,21 @@
+# Unified rainbow dashboard
+
+Library, Queue, Cover, Visualizer and Lyrics now appear together, down to
+40×12 terminal cells. `1`–`4` highlight panels without hiding content. `c`
+expands the queue; closing it returns to the dashboard. Wide/tall windows
+retain the optional recent cover grid. The PISKIN theme now uses a black/white
+base with rainbow headings, selections and audio visuals; `mono` and the other
+named palettes remain available. Original artwork colors remain intact.
+
+No settings or sign-in migration is required. Rebuild/reinstall after pulling
+source updates; `git pull` alone does not replace the installed binary.
+Use `./install.sh --no-path` to rebuild without changing shell configuration.
+The visualizer is visible on every dashboard highlight, so active playing
+visualization uses the existing 30 Hz policy across the dashboard; overlays,
+blur, idle and reduced motion keep their existing lower cadence.
+
+The sections below record the preceding resource optimization candidate.
+
 # Resource optimization development candidate
 
 This candidate builds on `1e2b3be` (the PCM waveform phase). It adds bounded

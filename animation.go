@@ -8,7 +8,7 @@ func (m model) reducedMotion() bool {
 
 func (m model) visualizerVisible() bool {
 	return !m.blurred && m.phase == phaseReady && m.w >= 40 && m.h >= 12 &&
-		m.screen == screenVisualizer && !m.queueOpen && !m.eqOpen &&
+		!m.queueOpen && !m.eqOpen &&
 		!m.helpOpen && !m.acctOpen && !m.searchOpen
 }
 

@@ -171,6 +171,10 @@ func paintCells(cells []byte, shade []int, w, h int) string {
 		lipgloss.NewStyle().Foreground(accent),
 		lipgloss.NewStyle().Foreground(accentHi),
 	}
+	var spectrum [len(brandSpectrum)]lipgloss.Style
+	for i, c := range brandSpectrum {
+		spectrum[i] = lipgloss.NewStyle().Foreground(c)
+	}
 
 	var out strings.Builder
 	for row := 0; row < h; row++ {
@@ -183,7 +187,11 @@ func paintCells(cells []byte, shade []int, w, h int) string {
 			if cur < 0 {
 				line.WriteString(run.String())
 			} else {
-				line.WriteString(styles[cur].Render(run.String()))
+				if rainbow {
+					line.WriteString(spectrum[cur].Render(run.String()))
+				} else {
+					line.WriteString(styles[cur].Render(run.String()))
+				}
 			}
 			run.Reset()
 		}
@@ -192,6 +200,9 @@ func paintCells(cells []byte, shade []int, w, h int) string {
 			want := -1
 			if cells[idx] != ' ' {
 				want = min(2, shade[idx]*3/len(orbRamp))
+				if rainbow {
+					want = min(len(spectrum)-1, col*len(spectrum)/max(1, w))
+				}
 			}
 			if want != cur {
 				flush()

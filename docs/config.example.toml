@@ -5,10 +5,10 @@
 # All original palettes are explicit legacy choices; saved choices are honored.
 # An existing color-only config with no named/saved palette keeps the apple base.
 # "auto" takes the accent from artwork only when explicitly selected.
-# PISKIN always keeps the shell monochrome, with original-color artwork.
+# PISKIN uses a black/white shell, rainbow accents and original-color artwork.
 name = "piskin"
 
-# Overrides apply to named legacy palettes; piskin remains fixed monochrome.
+# Overrides apply to named legacy palettes; piskin retains its fixed brand spectrum.
 # Hex only, and keep the quotes.
 # accent     = "#FA233B"
 # accent_hi  = "#FB5C74"
@@ -46,5 +46,5 @@ wave  = true   # progress bar shows recorded band-derived loudness (not PCM)
 
 [artwork]
 enabled = true
-# Hide the cover when fewer than this many columns would be left for lyrics.
+# Legacy lyrics/cover composition minimum; the dashboard has a separate cover panel.
 min_lyrics_width = 30

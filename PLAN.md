@@ -179,6 +179,15 @@ measurements, keyboard/mouse acceptance, dependency/license review, migration
 notes and release packaging. Preserve Windows functionality and honest unsupported
 capture status. Push completed commits only to a verified development branch.
 
+## Current presentation revision — 2026-11-11
+
+The user replaced the four-screen monochrome direction with one dashboard:
+Library, Queue, Cover, Visualizer and Lyrics must be visible simultaneously,
+including in a small window. The base remains black and white; headings,
+selected rows and visualizers carry the rainbow brand spectrum. The new
+layout retains the 40×12 minimum, with two/three column arrangements and
+scaled cover thumbnails. The prior phase history below remains historical.
+
 ## Current change scope
 
 Phases 0–4 are complete. Phase 5 adds bounded artwork/geometry/header caching,
